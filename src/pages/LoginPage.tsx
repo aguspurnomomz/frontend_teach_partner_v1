@@ -52,7 +52,17 @@ export default function LoginPage() {
             </p>
           </div>
 
-          <div className="relative z-10 text-xs text-white/55">© 2026 TeachPartner by SkoolaGo</div>
+          <div className="relative z-10 text-xs text-white/55">
+            © 2026 TeachPartner by{' '}
+            <a 
+              href="https://skoolago.com" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="text-white/70 hover:text-white transition-colors duration-200 underline-offset-2 hover:underline"
+            >
+              SkoolaGo
+            </a>
+          </div>
         </div>
 
         <div className="flex flex-col justify-center px-6 py-8 sm:px-11 sm:py-12">
