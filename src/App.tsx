@@ -13,6 +13,9 @@ export default function App() {
   const [tokenBalance, setTokenBalance] = useState(0)
   const [loading, setLoading] = useState(true)
 
+  // const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080'
+  const API_URL = import.meta.env.VITE_API_URL
+
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session)
@@ -30,7 +33,7 @@ export default function App() {
 
   const fetchTokenBalance = async (token: string) => {
     try {
-      const res = await axios.get('http://localhost:8080/api/profile', {
+      const res = await axios.get(`${API_URL}/api/profile`, {
         headers: { Authorization: `Bearer ${token}` }
       })
       setTokenBalance(res.data.token_balance)

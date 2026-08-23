@@ -19,6 +19,8 @@ export default function QuestionBankPage({ onBack }: { onBack: () => void }) {
   const [aiCognitive, setAiCognitive] = useState('C4')
   const [generating, setGenerating] = useState(false)
 
+  const API_URL = import.meta.env.VITE_API_URL
+
  
   const [questions, setQuestions] = useState([
     {
@@ -71,7 +73,7 @@ export default function QuestionBankPage({ onBack }: { onBack: () => void }) {
       if (!session) throw new Error('Sesi login berakhir.')
 
       const response = await axios.post(
-        'http://localhost:8080/api/ai/generate-questions',
+        `${API_URL}/api/ai/generate-questions`,
         {
           topic: aiTopic,
           question_type: aiType,

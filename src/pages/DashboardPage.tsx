@@ -6,6 +6,7 @@ import QuestionBankPage from './QuestionBankPage' // Impor halaman Bank Soal yan
 export default function Dashboard({ session }: { session: any }) {
   // State untuk mengontrol tampilan aktif ('dashboard' atau 'question-bank')
   const [currentView, setCurrentView] = useState<'dashboard' | 'question-bank'>('dashboard')
+  const API_URL = import.meta.env.VITE_API_URL
 
   const [profile, setProfile] = useState<any>({
     nama_guru: '',
@@ -39,7 +40,7 @@ export default function Dashboard({ session }: { session: any }) {
   const fetchProfile = async () => {
     try {
       const token = session.access_token
-      const response = await axios.get('http://localhost:8080/api/profile', {
+      const response = await axios.get(`${API_URL}/api/profile`, {
         headers: { Authorization: `Bearer ${token}` }
       })
       setProfile(response.data.profile)
@@ -59,7 +60,7 @@ export default function Dashboard({ session }: { session: any }) {
     e.preventDefault()
     try {
       const token = session.access_token
-      await axios.put('http://localhost:8080/api/profile', profile, {
+      await axios.put(`${API_URL}/api/profile`, profile, {
         headers: { Authorization: `Bearer ${token}` }
       })
       alert('Identitas perangkat berhasil diperbarui!')

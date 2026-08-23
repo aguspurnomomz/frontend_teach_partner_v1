@@ -14,10 +14,11 @@ const gridClass = 'grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3'
 export default function ProfilePage({ session }: { session: any }) {
   const [profile, setProfile] = useState<any>({})
   const [loading, setLoading] = useState(true)
+  const API_URL = import.meta.env.VITE_API_URL
 
   useEffect(() => {
     axios
-      .get('http://localhost:8080/api/profile', {
+      .get(`${API_URL}/api/profile`, {
         headers: { Authorization: `Bearer ${session.access_token}` },
       })
       .then((res) => {
@@ -34,7 +35,7 @@ export default function ProfilePage({ session }: { session: any }) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
-      await axios.put('http://localhost:8080/api/profile', profile, {
+      await axios.put(`${API_URL}/api/profile`, profile, {
         headers: { Authorization: `Bearer ${session.access_token}` },
       })
       alert('Identitas perangkat berhasil diperbarui!')
