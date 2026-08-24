@@ -69,7 +69,7 @@ export default function RegisterPage() {
         {/* Kolom Kanan: Form Pendaftaran */}
         <div className="flex flex-col justify-center px-6 py-8 sm:px-11 sm:py-12">
           <h2 className="mb-2 text-2xl font-bold tracking-tight text-tp-text">Buat Akun Baru</h2>
-          <p className="mb-7 text-sm text-tp-muted">Daftar menggunakan email dan password Anda.</p>
+          <p className="mb-7 text-sm text-tp-muted">Daftar menggunakan email Anda.</p>
 
           <form className="flex flex-col gap-4" onSubmit={handleRegister}>
             <div>
