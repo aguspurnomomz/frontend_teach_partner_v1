@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient'
+import teachpartnerIcon from '../assets/teachpartner.png'
+// import teachpartnerLogo from '../assets/teacpartnerico.png'
 
 function IconHome() {
   return (
@@ -110,10 +112,16 @@ export default function MainLayout({ session }: { session: any }) {
         }`}
       >
         <div className="mb-9 flex items-center gap-2.5 px-2">
-          <div className="grid h-[34px] w-[34px] shrink-0 place-items-center rounded-full bg-tp-green text-xs font-bold text-white">
-            TP
-          </div>
-          <span className="text-lg font-bold tracking-tight text-tp-text">TeachPartner</span>
+          {/* <img 
+            src={teachpartnerLogo} 
+            alt="TeachPartner" 
+            className="h-[34px] w-[34px] shrink-0 object-contain rounded-full"
+          /> */}
+          <img 
+            src={teachpartnerIcon} 
+            alt="TeachPartner" 
+            className="h-[34px] w-[34px]object-contain"
+          />
         </div>
 
         <div className="mb-2.5 px-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-tp-faint">
