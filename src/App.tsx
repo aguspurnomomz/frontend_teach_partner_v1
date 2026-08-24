@@ -7,6 +7,7 @@ import MainLayout from './components/MainLayout'
 import DashboardOverview from './pages/DashboardOverview'
 import QuestionBankPage from './pages/QuestionBankPage'
 import ProfilePage from './pages/ProfilePage'
+import RegisterPage from './pages/RegisterPage'
 
 import SuperAdminLoginPage from './pages/superadmin/SuperAdminLoginPage'
 import SuperAdminDashboard from './pages/superadmin/SuperAdminDashboard'
@@ -94,6 +95,9 @@ export default function App() {
             )
           } 
         />
+
+        {/* --- Route Register (Publik) --- */}
+        <Route path="/register" element={<RegisterPage />} />
 
         {/* --- Route User guru --- */}
         <Route 
