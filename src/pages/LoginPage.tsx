@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
-import skoolagoIcon from '../assets/skoolago_icon.png'
+import teachpartnerIcon from '../assets/teachpartner.png'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -33,14 +33,11 @@ export default function LoginPage() {
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_80%_20%,rgba(125,211,167,0.35),transparent_40%),radial-gradient(circle_at_10%_90%,rgba(255,255,255,0.08),transparent_35%)]" />
 
           <div className="relative z-10 flex items-center gap-2.5 text-lg font-bold">
-            <div className="grid h-9 w-9 place-items-center rounded-[10px] border border-white/25 bg-white/15 overflow-hidden">
-              <img 
-                src={skoolagoIcon} 
-                alt="SkoolaGo" 
-                className="h-7 w-7 object-contain"
-              />
-            </div>
-            TeachPartner
+            <img 
+              src={teachpartnerIcon} 
+              alt="TeachPartner" 
+              className="h-8 w-auto object-contain"
+            />
           </div>
 
           <div className="relative z-10 py-0 md:py-6">
