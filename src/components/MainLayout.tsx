@@ -99,7 +99,7 @@ export default function MainLayout({ session }: { session: any }) {
     const checkSession = async () => {
       const { data: { session: currentSession } } = await supabase.auth.getSession()
       if (!currentSession) {
-        navigate('/login', { replace: true })
+        navigate('/', { replace: true })
       }
     }
     checkSession()
@@ -107,7 +107,7 @@ export default function MainLayout({ session }: { session: any }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
         if (event === 'SIGNED_OUT' || !session) {
-          navigate('/login', { replace: true })
+          navigate('/', { replace: true })
         }
       }
     )
