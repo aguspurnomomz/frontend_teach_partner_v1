@@ -8,9 +8,14 @@ import DashboardOverview from './pages/DashboardOverview'
 import QuestionBankPage from './pages/QuestionBankPage'
 import ProfilePage from './pages/ProfilePage'
 import RegisterPage from './pages/RegisterPage'
+import EbooksPage from './pages/EbooksPage' 
 
 import SuperAdminLoginPage from './pages/superadmin/SuperAdminLoginPage'
 import SuperAdminDashboard from './pages/superadmin/SuperAdminDashboard'
+import SuperAdminEbooks from './pages/superadmin/SuperAdminEbooks'
+
+// Dedupe /api/profile antar Strict Mode remount (dev) untuk token yang sama
+let lastProfileTokenFetched: string | null = null
 
 export default function App() {
   const [session, setSession] = useState<any>(null)
@@ -23,30 +28,45 @@ export default function App() {
   const API_URL = import.meta.env.VITE_API_URL
 
   useEffect(() => {
+    let cancelled = false
+
+    const fetchTokenBalance = async (token: string) => {
+      if (!token || token === lastProfileTokenFetched) return
+      lastProfileTokenFetched = token
+      try {
+        const res = await axios.get(`${API_URL}/api/profile`, {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+        if (!cancelled) setTokenBalance(res.data.token_balance)
+      } catch (e) {
+        console.error(e)
+        lastProfileTokenFetched = null
+      }
+    }
+
+    // getSession hanya hydrate UI — fetch profile cukup dari onAuthStateChange
     supabase.auth.getSession().then(({ data: { session } }) => {
+      if (cancelled) return
       setSession(session)
-      if (session) fetchTokenBalance(session.access_token)
       setLoading(false)
     })
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (cancelled) return
       setSession(session)
-      if (session) fetchTokenBalance(session.access_token)
+      if (session) {
+        fetchTokenBalance(session.access_token)
+      } else {
+        lastProfileTokenFetched = null
+        setTokenBalance(0)
+      }
     })
 
-    return () => subscription.unsubscribe()
-  }, [])
-
-  const fetchTokenBalance = async (token: string) => {
-    try {
-      const res = await axios.get(`${API_URL}/api/profile`, {
-        headers: { Authorization: `Bearer ${token}` }
-      })
-      setTokenBalance(res.data.token_balance)
-    } catch (e) {
-      console.error(e)
+    return () => {
+      cancelled = true
+      subscription.unsubscribe()
     }
-  }
+  }, [API_URL])
 
   const handleAdminLogout = () => {
     localStorage.removeItem('superadmin_token')
@@ -95,6 +115,16 @@ export default function App() {
             )
           } 
         />
+        <Route 
+          path="/superadmin/ebooks" 
+          element={
+            adminToken ? (
+              <SuperAdminEbooks />
+            ) : (
+              <Navigate to="/superadmin/login" replace />
+            )
+          } 
+        />
 
         {/* --- Route Register (Publik) --- */}
         <Route path="/register" element={<RegisterPage />} />
@@ -107,6 +137,7 @@ export default function App() {
           <Route index element={<DashboardOverview tokenBalance={tokenBalance} />} />
           <Route path="profile" element={<ProfilePage session={session} />} />
           <Route path="question-bank" element={<QuestionBankPage onBack={() => window.location.href = '/'} />} />
+          <Route path="ebooks" element={<EbooksPage />} /> 
         </Route>
 
         {/* --- 404 --- */}

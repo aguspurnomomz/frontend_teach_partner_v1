@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect} from 'react'
 import { Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient'
 import teachpartnerIcon from '../assets/teachpartner.png'
@@ -80,6 +80,8 @@ export default function MainLayout({ session }: { session: any }) {
   const navigate = useNavigate()
   const location = useLocation()
   const [sidebarOpen, setSidebarOpen] = useState(false)
+    const [showLogoutModal, setShowLogoutModal] = useState(false) // State untuk modal
+  const [isLoggingOut, setIsLoggingOut] = useState(false) // State loading
 
   const email = session?.user?.email ?? ''
   const displayName = email.split('@')[0] || 'Guru'
@@ -88,11 +90,40 @@ export default function MainLayout({ session }: { session: any }) {
   const menuItems = [
     { path: '/', label: 'Dashboard', icon: <IconHome /> },
     { path: '/question-bank', label: 'Bank Soal', icon: <IconBook />, badge: 'AI' },
+    { path: '/ebooks', label: 'Referensi E-Book', icon: <IconBook /> },
     { path: '/profile', label: 'Identitas', icon: <IconSettings /> },
   ]
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut()
+   // Cek session setiap kali ada perubahan
+  useEffect(() => {
+    const checkSession = async () => {
+      const { data: { session: currentSession } } = await supabase.auth.getSession()
+      if (!currentSession) {
+        navigate('/login', { replace: true })
+      }
+    }
+    checkSession()
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        if (event === 'SIGNED_OUT' || !session) {
+          navigate('/login', { replace: true })
+        }
+      }
+    )
+
+    return () => subscription.unsubscribe()
+  }, [navigate])
+
+    const handleLogout = async () => {
+    try {
+      setIsLoggingOut(true)
+      await supabase.auth.signOut()
+      setShowLogoutModal(false)
+    } catch (error) {
+      console.error('Error logout:', error)
+      setIsLoggingOut(false)
+    }
   }
 
   const closeSidebar = () => setSidebarOpen(false)
@@ -170,16 +201,86 @@ export default function MainLayout({ session }: { session: any }) {
               Download
             </button>
           </div>
-          <button
+             <button
             type="button"
             className="flex w-full items-center gap-2.5 rounded-[10px] px-3 py-[11px] text-sm font-medium text-tp-muted transition hover:bg-rose-50 hover:text-rose-600"
-            onClick={handleLogout}
+            onClick={() => setShowLogoutModal(true)} // 👈 Buka modal
           >
             <IconLogout />
             Keluar
           </button>
         </div>
       </aside>
+
+           {/* 👇 MODAL KONFIRMASI LOGOUT */}
+      {showLogoutModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          {/* Overlay modal */}
+          <div 
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            onClick={() => !isLoggingOut && setShowLogoutModal(false)}
+          />
+          
+          {/* Modal content */}
+          <div className="relative w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+            {/* Icon peringatan */}
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-rose-50">
+              <svg 
+                className="h-8 w-8 text-rose-600" 
+                fill="none" 
+                stroke="currentColor" 
+                viewBox="0 0 24 24"
+              >
+                <path 
+                  strokeLinecap="round" 
+                  strokeLinejoin="round" 
+                  strokeWidth="2" 
+                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" 
+                />
+              </svg>
+            </div>
+
+            <h3 className="mb-2 text-center text-xl font-bold text-gray-900">
+              Perhatian!
+            </h3>
+            <p className="mb-6 text-center text-sm text-gray-600">
+              Halo {displayName}, apakah Anda yakin ingin keluar dari aplikasi?
+              <br />
+              <span className="text-xs text-gray-400">
+                Jika ya, sesi akan berakhir.
+              </span>
+            </p>
+
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setShowLogoutModal(false)}
+                disabled={isLoggingOut}
+                className="flex-1 rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={handleLogout}
+                disabled={isLoggingOut}
+                className="flex-1 rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {isLoggingOut ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <svg className="h-4 w-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    Keluar...
+                  </span>
+                ) : (
+                  'Ya, Keluar'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="flex min-h-screen min-w-0 flex-1 flex-col lg:ml-[260px]">
         <header className="flex items-center gap-4 px-4 py-3 sm:px-7 sm:py-4">

@@ -1,6 +1,9 @@
 import React, { useEffect, useState } from 'react'
 import axios from 'axios'
 
+// Single-flight cache untuk mencegah request duplikat
+let fetchPromise: Promise<any> | null = null
+
 const fieldClass =
   'w-full rounded-xl border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-tp-text outline-none transition focus:border-tp-green focus:shadow-[0_0_0_3px_rgba(15,76,54,0.12)]'
 
@@ -17,16 +20,42 @@ export default function ProfilePage({ session }: { session: any }) {
   const API_URL = import.meta.env.VITE_API_URL
 
   useEffect(() => {
-    axios
-      .get(`${API_URL}/api/profile`, {
-        headers: { Authorization: `Bearer ${session.access_token}` },
-      })
-      .then((res) => {
-        setProfile(res.data.profile)
-        setLoading(false)
-      })
-      .catch((err) => console.error(err))
-  }, [session])
+    let isMounted = true
+
+    const fetchProfile = async () => {
+      try {
+        setLoading(true)
+        
+        // Single-flight: hanya buat 1 promise untuk semua panggilan
+        if (!fetchPromise) {
+          fetchPromise = axios.get(`${API_URL}/api/profile`, {
+            headers: { Authorization: `Bearer ${session.access_token}` },
+          })
+        }
+
+        const res = await fetchPromise
+        
+        if (isMounted) {
+          setProfile(res.data.profile)
+        }
+      } catch (err) {
+        console.error('Gagal memuat profil:', err)
+        // Reset cache saat error agar bisa dicoba lagi
+        fetchPromise = null
+        if (isMounted) setProfile({})
+      } finally {
+        if (isMounted) setLoading(false)
+      }
+    }
+
+    fetchProfile()
+
+    return () => {
+      isMounted = false
+      // Reset cache saat unmount (opsional)
+      // fetchPromise = null
+    }
+  }, [session, API_URL])
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setProfile({ ...profile, [e.target.name]: e.target.value })
