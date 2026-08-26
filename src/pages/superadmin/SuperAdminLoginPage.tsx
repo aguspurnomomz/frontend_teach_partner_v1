@@ -6,9 +6,32 @@ interface SuperAdminLoginPageProps {
   onLoginSuccess: (token: string, adminName: string) => void
 }
 
+// Icon Mata Terbuka
+function IconEye() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  )
+}
+
+// Icon Mata Tertutup (Coret)
+function IconEyeOff() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M9.88 9.88a3 3 0 1 0 4.24 4.24" />
+      <path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68" />
+      <path d="M6.61 6.61A13.52 13.52 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61" />
+      <line x1="2" x2="22" y1="2" y2="22" />
+    </svg>
+  )
+}
+
 export default function SuperAdminLoginPage({ onLoginSuccess }: SuperAdminLoginPageProps) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false) // <--- State untuk toggle visibilitas password
   const [loading, setLoading] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
 
@@ -59,16 +82,16 @@ export default function SuperAdminLoginPage({ onLoginSuccess }: SuperAdminLoginP
               className="h-8 w-auto object-contain"
             />
             <span className="rounded-full bg-emerald-500/20 px-2.5 py-0.5 text-xs font-semibold text-emerald-300 border border-emerald-500/30">
-              Superadmin Portal
+              Portal Superadmin
             </span>
           </div>
 
           <div className="relative z-10 py-0 md:py-6">
             <h2 className="mb-3 text-[22px] font-bold leading-snug tracking-tight md:text-[28px]">
-              Pusat Kendali Sistem & Pengguna
+              Pusat Kendali Sistem 
             </h2>
             <p className="max-w-xs text-sm leading-relaxed text-white/80">
-              Akses khusus internal pengelola untuk memantau aktivitas platform, mengelola database pengguna, dan keamanan sistem.
+              Akses khusus Role Super Admin internal pengelola system.
             </p>
           </div>
 
@@ -117,16 +140,27 @@ export default function SuperAdminLoginPage({ onLoginSuccess }: SuperAdminLoginP
               <label className="mb-1.5 block text-[13px] font-semibold text-gray-700" htmlFor="admin-password">
                 Password
               </label>
-              <input
-                id="admin-password"
-                className="w-full rounded-xl border border-gray-300 bg-white px-3.5 py-3 text-sm text-tp-text outline-none transition focus:border-tp-green focus:shadow-[0_0_0_3px_rgba(15,76,54,0.12)]"
-                type="password"
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                autoComplete="current-password"
-                required
-              />
+              <div className="relative flex items-center">
+                <input
+                  id="admin-password"
+                  className="w-full rounded-xl border border-gray-300 bg-white px-3.5 py-3 pr-10 text-sm text-tp-text outline-none transition focus:border-tp-green focus:shadow-[0_0_0_3px_rgba(15,76,54,0.12)]"
+                  type={showPassword ? 'text' : 'password'}
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  autoComplete="current-password"
+                  required
+                />
+                <button
+                  type="button"
+                  className="absolute right-3.5 text-gray-400 hover:text-gray-600 focus:outline-none"
+                  onClick={() => setShowPassword(!showPassword)}
+                  tabIndex={-1}
+                  aria-label="Toggle password visibility"
+                >
+                  {showPassword ? <IconEyeOff /> : <IconEye />}
+                </button>
+              </div>
             </div>
 
             <button
@@ -139,10 +173,9 @@ export default function SuperAdminLoginPage({ onLoginSuccess }: SuperAdminLoginP
           </form>
 
           <div className="mt-6 text-center text-xs text-tp-muted">
-            Kembali ke <a href="/" className="font-semibold text-tp-green hover:underline">Halaman Utama Guru</a>
+            Kembali ke <a href="/" className="font-semibold text-tp-green hover:underline">Halaman Login Guru</a>
           </div>
         </div>
-
       </div>
     </div>
   )

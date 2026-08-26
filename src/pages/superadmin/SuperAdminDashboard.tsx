@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/react'
 import { useEffect, useMemo, useState } from 'react'
 import axios from 'axios'
 import teachpartnerIcon from '../../assets/teachpartner.png'
@@ -19,9 +20,19 @@ interface EbookItem {
   judul: string
   jenjang: string
   mata_pelajaran: string
-  kategori: string // <-- Ditambahkan
+  kategori: string
   cover_url: string
   file_url: string
+  created_at: string
+}
+
+interface LogItem {
+  id: number
+  email: string
+  action: string
+  ip_address: string
+  user_agent: string
+  details: string
   created_at: string
 }
 
@@ -30,7 +41,7 @@ interface SuperAdminDashboardProps {
   onLogout: () => void
 }
 
-type AdminView = 'dashboard' | 'users' | 'ebooks'
+type AdminView = 'dashboard' | 'users' | 'ebooks' | 'security'
 
 function IconHome() {
   return (
@@ -63,6 +74,14 @@ function IconBook() {
   )
 }
 
+function IconShield() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+    </svg>
+  )
+}
+
 function IconMenu() {
   return (
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
@@ -90,9 +109,30 @@ function IconRefresh() {
   )
 }
 
+function IconEye() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  )
+}
+
+function IconEyeOff() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M9.88 9.88a3 3 0 1 0 4.24 4.24" />
+      <path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68" />
+      <path d="M6.61 6.61A13.52 13.52 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61" />
+      <line x1="2" x2="22" y1="2" y2="22" />
+    </svg>
+  )
+}
+
 export default function SuperAdminDashboard({ adminName, onLogout }: SuperAdminDashboardProps) {
   const [users, setUsers] = useState<UserItem[]>([])
   const [ebooks, setEbooks] = useState<EbookItem[]>([])
+  const [logs, setLogs] = useState<LogItem[]>([])
   const [loading, setLoading] = useState(true)
   const [errorMsg, setErrorMsg] = useState('')
   const [activeView, setActiveView] = useState<AdminView>('dashboard')
@@ -104,10 +144,19 @@ export default function SuperAdminDashboard({ adminName, onLogout }: SuperAdminD
   const [judul, setJudul] = useState('')
   const [jenjang, setJenjang] = useState('SMA/MA')
   const [mataPelajaran, setMataPelajaran] = useState('')
-  const [kategori, setKategori] = useState('Kurikulum Merdeka') // <-- Ditambahkan state kategori
+  const [kategori, setKategori] = useState('Kurikulum Merdeka')
   const [coverUrl, setCoverUrl] = useState('')
   const [fileUrl, setFileUrl] = useState('')
   const [submitting, setSubmitting] = useState(false)
+
+  // State Form Ganti Password & Visibility
+  const [oldPassword, setOldPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [showOldPass, setShowOldPass] = useState(false)
+  const [showNewPass, setShowNewPass] = useState(false)
+  const [showConfirmPass, setShowConfirmPass] = useState(false)
+  const [changingPass, setChangingPass] = useState(false)
 
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080'
   const initial = (adminName?.charAt(0) || 'S').toUpperCase()
@@ -146,10 +195,41 @@ export default function SuperAdminDashboard({ adminName, onLogout }: SuperAdminD
     }
   }
 
+  const fetchLogs = async () => {
+    try {
+      const token = localStorage.getItem('superadmin_token')
+      const res = await axios.get(`${API_URL}/api/superadmin/logs`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      setLogs(res.data.logs || [])
+    } catch (err) {
+      console.error('Gagal memuat log aktivitas:', err)
+    }
+  }
+
   useEffect(() => {
     fetchRegisteredUsers()
     fetchEbooks()
+    fetchLogs()
   }, [])
+
+  // Fungsi Pengujian Sentry
+  const handleTestSentryFrontend = () => {
+    try {
+      throw new Error('Test Error dari Frontend React Superadmin!')
+    } catch (err) {
+      Sentry.captureException(err)
+      alert('Berhasil! Error tes Frontend telah dikirim ke Sentry.')
+    }
+  }
+
+  const handleTestSentryBackend = async () => {
+    try {
+      await axios.get(`${API_URL}/debug-sentry`)
+    } catch (err: any) {
+      alert('Berhasil! Endpoint tes Backend berhasil dipicu (Status 500). Cek dashboard Sentry Anda.')
+    }
+  }
 
   const handleToggleStatus = async (userId: string, currentStatus: boolean) => {
     const actionText = currentStatus ? 'memblokir' : 'mengaktifkan kembali'
@@ -180,7 +260,7 @@ export default function SuperAdminDashboard({ adminName, onLogout }: SuperAdminD
           judul,
           jenjang,
           mata_pelajaran: mataPelajaran,
-          kategori, // <-- Dikirim ke backend
+          kategori,
           cover_url: coverUrl,
           file_url: fileUrl,
         },
@@ -190,7 +270,7 @@ export default function SuperAdminDashboard({ adminName, onLogout }: SuperAdminD
       setShowModal(false)
       setJudul('')
       setMataPelajaran('')
-      setKategori('Kurikulum Merdeka') // Reset ke default
+      setKategori('Kurikulum Merdeka')
       setCoverUrl('')
       setFileUrl('')
       fetchEbooks()
@@ -216,6 +296,40 @@ export default function SuperAdminDashboard({ adminName, onLogout }: SuperAdminD
     }
   }
 
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault()
+
+    if (newPassword !== confirmPassword) {
+      alert('Konfirmasi kata sandi baru tidak cocok!')
+      return
+    }
+
+    const confirmSave = window.confirm('Apakah Anda yakin ingin menyimpan kata sandi baru ini?')
+    if (!confirmSave) return
+
+    setChangingPass(true)
+    try {
+      const token = localStorage.getItem('superadmin_token')
+      await axios.post(
+        `${API_URL}/api/superadmin/change-password`,
+        {
+          old_password: oldPassword,
+          new_password: newPassword,
+        },
+        { headers: { Authorization: `Bearer ${token}` } }
+      )
+      alert('Kata sandi berhasil diubah!')
+      setOldPassword('')
+      setNewPassword('')
+      setConfirmPassword('')
+      fetchLogs()
+    } catch (err: any) {
+      alert('Gagal mengubah kata sandi: ' + (err.response?.data?.error || err.message))
+    } finally {
+      setChangingPass(false)
+    }
+  }
+
   const stats = useMemo(() => {
     const active = users.filter((u) => u.is_active).length
     const blocked = users.length - active
@@ -238,6 +352,7 @@ export default function SuperAdminDashboard({ adminName, onLogout }: SuperAdminD
     { id: 'dashboard' as const, label: 'Dashboard', icon: <IconHome /> },
     { id: 'users' as const, label: 'User Guru', icon: <IconUsers />, badge: String(stats.total) },
     { id: 'ebooks' as const, label: 'Kelola E-Book', icon: <IconBook />, badge: String(stats.totalEbooks) },
+    { id: 'security' as const, label: 'Keamanan & Log', icon: <IconShield /> },
   ]
 
   const openView = (view: AdminView) => {
@@ -245,6 +360,7 @@ export default function SuperAdminDashboard({ adminName, onLogout }: SuperAdminD
     setSidebarOpen(false)
     if (view === 'users') fetchRegisteredUsers()
     if (view === 'ebooks') fetchEbooks()
+    if (view === 'security') fetchLogs()
   }
 
   return (
@@ -320,7 +436,13 @@ export default function SuperAdminDashboard({ adminName, onLogout }: SuperAdminD
           <div>
             <p className="text-xs font-semibold uppercase tracking-wider text-tp-faint">Superadmin Panel</p>
             <h2 className="text-sm font-bold text-tp-text sm:text-base">
-              {activeView === 'dashboard' ? 'Dashboard' : activeView === 'users' ? 'User Guru Terdaftar' : 'Kelola E-Book Referensi'}
+              {activeView === 'dashboard'
+                ? 'Dashboard'
+                : activeView === 'users'
+                ? 'User Guru Terdaftar'
+                : activeView === 'ebooks'
+                ? 'Kelola E-Book Referensi'
+                : 'Keamanan & Log'}
             </h2>
           </div>
 
@@ -499,7 +621,7 @@ export default function SuperAdminDashboard({ adminName, onLogout }: SuperAdminD
                 </div>
               </div>
             </div>
-          ) : (
+          ) : activeView === 'ebooks' ? (
             <div>
               <div className="mb-6 flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
                 <div>
@@ -585,6 +707,198 @@ export default function SuperAdminDashboard({ adminName, onLogout }: SuperAdminD
                 </div>
               </div>
             </div>
+          ) : (
+            /* --- TAMPILAN VIEW KEAMANAN, GANTI SANDI & PENGUJIAN SENTRY --- */
+            <div className="flex flex-col gap-6">
+              <div>
+                <h1 className="mb-1 text-2xl font-bold tracking-tight text-tp-text sm:text-[28px]">Keamanan & Log Aktivitas</h1>
+                <p className="text-sm text-tp-muted">Perbarui kata sandi, uji monitoring error, dan pantau riwayat jejak keamanan administrator sistem.</p>
+              </div>
+
+              {/* Grid 2 Kolom: Ubah Password & Tes Sentry */}
+              <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+                
+                {/* 1. Form Ganti Sandi */}
+                <div className="rounded-2xl border border-tp-border bg-white p-6 shadow-sm">
+                  <h3 className="mb-4 text-base font-bold text-tp-text">Ubah Kata Sandi</h3>
+                  <form onSubmit={handleChangePassword} className="flex flex-col gap-4">
+                    <div>
+                      <label className="mb-1 block text-xs font-semibold text-gray-700">Kata Sandi Lama</label>
+                      <div className="relative flex items-center">
+                        <input
+                          type={showOldPass ? 'text' : 'password'}
+                          required
+                          placeholder="••••••••"
+                          className="w-full rounded-xl border border-gray-300 px-3.5 py-2.5 pr-10 text-sm outline-none focus:border-tp-green"
+                          value={oldPassword}
+                          onChange={(e) => setOldPassword(e.target.value)}
+                        />
+                        <button
+                          type="button"
+                          className="absolute right-3 text-gray-400 hover:text-gray-600"
+                          onClick={() => setShowOldPass(!showOldPass)}
+                          tabIndex={-1}
+                        >
+                          {showOldPass ? <IconEyeOff /> : <IconEye />}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="mb-1 block text-xs font-semibold text-gray-700">Kata Sandi Baru (Min. 6 Karakter)</label>
+                      <div className="relative flex items-center">
+                        <input
+                          type={showNewPass ? 'text' : 'password'}
+                          required
+                          minLength={6}
+                          placeholder="••••••••"
+                          className="w-full rounded-xl border border-gray-300 px-3.5 py-2.5 pr-10 text-sm outline-none focus:border-tp-green"
+                          value={newPassword}
+                          onChange={(e) => setNewPassword(e.target.value)}
+                        />
+                        <button
+                          type="button"
+                          className="absolute right-3 text-gray-400 hover:text-gray-600"
+                          onClick={() => setShowNewPass(!showNewPass)}
+                          tabIndex={-1}
+                        >
+                          {showNewPass ? <IconEyeOff /> : <IconEye />}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="mb-1 block text-xs font-semibold text-gray-700">Konfirmasi Kata Sandi Baru</label>
+                      <div className="relative flex items-center">
+                        <input
+                          type={showConfirmPass ? 'text' : 'password'}
+                          required
+                          placeholder="••••••••"
+                          className="w-full rounded-xl border border-gray-300 px-3.5 py-2.5 pr-10 text-sm outline-none focus:border-tp-green"
+                          value={confirmPassword}
+                          onChange={(e) => setConfirmPassword(e.target.value)}
+                        />
+                        <button
+                          type="button"
+                          className="absolute right-3 text-gray-400 hover:text-gray-600"
+                          onClick={() => setShowConfirmPass(!showConfirmPass)}
+                          tabIndex={-1}
+                        >
+                          {showConfirmPass ? <IconEyeOff /> : <IconEye />}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="mt-2 flex justify-end">
+                      <button
+                        type="submit"
+                        disabled={changingPass}
+                        className="rounded-xl bg-tp-green px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-tp-green-hover disabled:opacity-50"
+                      >
+                        {changingPass ? 'Menyimpan...' : 'Perbarui Kata Sandi'}
+                      </button>
+                    </div>
+                  </form>
+                </div>
+
+                {/* 2. CARD PENGUJIAN SENTRY */}
+                <div className="flex flex-col justify-between rounded-2xl border border-tp-border bg-white p-6 shadow-sm">
+                  <div>
+                    <div className="mb-2 flex items-center gap-2">
+                      <span className="flex h-2.5 w-2.5 rounded-full bg-indigo-500 animate-pulse" />
+                      <h3 className="text-base font-bold text-tp-text">Pengujian Sentry Monitoring</h3>
+                    </div>
+                    <p className="mb-4 text-xs text-tp-muted leading-relaxed">
+                      Gunakan fitur ini untuk memastikan integrasi pemantau kesalahan (Sentry) berjalan dengan baik pada lingkungan Client (Vite) maupun Server (Golang Cloud Run).
+                    </p>
+                  </div>
+
+                  <div className="flex flex-col gap-3">
+                    <button
+                      type="button"
+                      onClick={handleTestSentryFrontend}
+                      className="flex items-center justify-between rounded-xl border border-indigo-200 bg-indigo-50/50 px-4 py-3 text-xs font-semibold text-indigo-700 transition hover:bg-indigo-100"
+                    >
+                      <span>Trigger Error Frontend (React)</span>
+                      <span className="rounded-md bg-indigo-200/60 px-2 py-0.5 text-[10px] font-bold">Client Test</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleTestSentryBackend}
+                      className="flex items-center justify-between rounded-xl border border-rose-200 bg-rose-50/50 px-4 py-3 text-xs font-semibold text-rose-700 transition hover:bg-rose-100"
+                    >
+                      <span>Trigger Panic Backend (Golang)</span>
+                      <span className="rounded-md bg-rose-200/60 px-2 py-0.5 text-[10px] font-bold">Server Test</span>
+                    </button>
+                  </div>
+                </div>
+
+              </div>
+
+              {/* Tabel Riwayat Log Aktivitas */}
+              <div>
+                <div className="mb-3 flex items-center justify-between">
+                  <h3 className="text-base font-bold text-tp-text">Riwayat Log Keamanan (Audit Trail)</h3>
+                  <button
+                    type="button"
+                    onClick={fetchLogs}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-tp-border bg-white px-3 py-1.5 text-xs font-semibold text-tp-text transition hover:bg-gray-50"
+                  >
+                    <IconRefresh /> Muat Ulang Log
+                  </button>
+                </div>
+
+                <div className="overflow-hidden rounded-2xl border border-tp-border bg-white shadow-sm">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-sm">
+                      <thead className="border-b border-tp-border bg-gray-50 text-xs font-semibold uppercase tracking-wider text-tp-muted">
+                        <tr>
+                          <th className="px-5 py-3.5">Waktu</th>
+                          <th className="px-5 py-3.5">Aksi / Aktivitas</th>
+                          <th className="px-5 py-3.5">IP Address</th>
+                          <th className="px-5 py-3.5">Detail / Perangkat</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-tp-border">
+                        {logs.length === 0 ? (
+                          <tr>
+                            <td colSpan={4} className="px-5 py-8 text-center text-tp-muted text-xs">
+                              Belum ada catatan log aktivitas keamanan.
+                            </td>
+                          </tr>
+                        ) : (
+                          logs.map((log) => (
+                            <tr key={log.id} className="transition hover:bg-gray-50/50">
+                              <td className="px-5 py-3.5 text-xs text-tp-muted whitespace-nowrap">
+                                {new Date(log.created_at).toLocaleString('id-ID')}
+                              </td>
+                              <td className="px-5 py-3.5">
+                                <span className={`inline-flex rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${
+                                  log.action === 'LOGIN_SUCCESS' 
+                                    ? 'bg-emerald-100 text-emerald-700' 
+                                    : log.action === 'CHANGE_PASSWORD'
+                                    ? 'bg-blue-100 text-blue-700'
+                                    : 'bg-rose-100 text-rose-700'
+                                }`}>
+                                  {log.action}
+                                </span>
+                              </td>
+                              <td className="px-5 py-3.5 text-xs font-mono text-tp-muted">
+                                {log.ip_address || '-'}
+                              </td>
+                              <td className="px-5 py-3.5 text-xs text-tp-text max-w-xs truncate" title={log.user_agent}>
+                                {log.details || log.user_agent || '-'}
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
           )}
         </main>
       </div>
@@ -633,7 +947,6 @@ export default function SuperAdminDashboard({ adminName, onLogout }: SuperAdminD
                 </div>
               </div>
 
-              {/* DROPDOWN KATEGORI BUKU DITAMBAHKAN DI SINI */}
               <div>
                 <label className="mb-1 block text-xs font-semibold text-gray-700">Kategori Buku</label>
                 <select

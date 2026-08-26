@@ -3,9 +3,32 @@ import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient'
 import teachpartnerIcon from '../assets/teachpartner.png'
 
+// Icon Mata Terbuka
+function IconEye() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  )
+}
+
+// Icon Mata Tertutup (Coret)
+function IconEyeOff() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M9.88 9.88a3 3 0 1 0 4.24 4.24" />
+      <path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68" />
+      <path d="M6.61 6.61A13.52 13.52 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61" />
+      <line x1="2" x2="22" y1="2" y2="22" />
+    </svg>
+  )
+}
+
 export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false) // <--- State untuk toggle visibilitas password
   const [loading, setLoading] = useState(false)
 
   const handleEmailLogin = async (e: React.FormEvent) => {
@@ -46,7 +69,7 @@ export default function LoginPage() {
               Kelola administrasi mengajar lebih mudah
             </h2>
             <p className="max-w-xs text-sm leading-relaxed text-white/80">
-              Satu platform terintegrasi untuk perangkat ajar, profil guru, dan kebutuhan asesmen sekolah Anda.
+              Satu platform terintegrasi untuk perangkat ajar, bank soal, panduan dan e-book dan kebutuhan asesmen.
             </p>
           </div>
 
@@ -65,7 +88,7 @@ export default function LoginPage() {
 
         <div className="flex flex-col justify-center px-6 py-8 sm:px-11 sm:py-12">
           <h2 className="mb-2 text-2xl font-bold tracking-tight text-tp-text">Masuk ke akun</h2>
-          <p className="mb-7 text-sm text-tp-muted">Gunakan email sekolah atau lanjutkan dengan Google.</p>
+          <p className="mb-7 text-sm text-tp-muted">Gunakan email anda atau lanjutkan dengan Google.</p>
 
           <form className="flex flex-col gap-4" onSubmit={handleEmailLogin}>
             <div>
@@ -88,16 +111,27 @@ export default function LoginPage() {
               <label className="mb-1.5 block text-[13px] font-semibold text-gray-700" htmlFor="login-password">
                 Password
               </label>
-              <input
-                id="login-password"
-                className="w-full rounded-xl border border-gray-300 bg-white px-3.5 py-3 text-sm text-tp-text outline-none transition focus:border-tp-green focus:shadow-[0_0_0_3px_rgba(15,76,54,0.12)]"
-                type="password"
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                autoComplete="current-password"
-                required
-              />
+              <div className="relative flex items-center">
+                <input
+                  id="login-password"
+                  className="w-full rounded-xl border border-gray-300 bg-white px-3.5 py-3 pr-10 text-sm text-tp-text outline-none transition focus:border-tp-green focus:shadow-[0_0_0_3px_rgba(15,76,54,0.12)]"
+                  type={showPassword ? 'text' : 'password'}
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  autoComplete="current-password"
+                  required
+                />
+                <button
+                  type="button"
+                  className="absolute right-3.5 text-gray-400 hover:text-gray-600 focus:outline-none"
+                  onClick={() => setShowPassword(!showPassword)}
+                  tabIndex={-1}
+                  aria-label="Toggle password visibility"
+                >
+                  {showPassword ? <IconEyeOff /> : <IconEye />}
+                </button>
+              </div>
             </div>
 
             <button
