@@ -10,6 +10,8 @@ import ProfilePage from './pages/ProfilePage'
 import RegisterPage from './pages/RegisterPage'
 import EbooksPage from './pages/EbooksPage' 
 
+import BillingPage from './pages/BillingPage'
+
 import SuperAdminLoginPage from './pages/superadmin/SuperAdminLoginPage'
 import SuperAdminDashboard from './pages/superadmin/SuperAdminDashboard'
 import SuperAdminEbooks from './pages/superadmin/SuperAdminEbooks'
@@ -138,6 +140,7 @@ export default function App() {
           <Route path="profile" element={<ProfilePage session={session} />} />
           <Route path="question-bank" element={<QuestionBankPage onBack={() => window.location.href = '/'} />} />
           <Route path="ebooks" element={<EbooksPage />} /> 
+          <Route path="billing" element={<BillingPage />} />
         </Route>
 
         {/* --- 404 --- */}

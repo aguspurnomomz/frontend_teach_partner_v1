@@ -1,37 +1,19 @@
 import React, { useState } from 'react'
 import axios from 'axios'
 import teachpartnerIcon from '../../assets/teachpartner.png'
+import { Button } from '../../components/ui/button'
+import { Input } from '../../components/ui/input'
+import { Label } from '../../components/ui/label'
+import { Eye, EyeOff } from 'lucide-react'
 
 interface SuperAdminLoginPageProps {
   onLoginSuccess: (token: string, adminName: string) => void
 }
 
-// Icon Mata Terbuka
-function IconEye() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
-      <circle cx="12" cy="12" r="3" />
-    </svg>
-  )
-}
-
-// Icon Mata Tertutup (Coret)
-function IconEyeOff() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M9.88 9.88a3 3 0 1 0 4.24 4.24" />
-      <path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68" />
-      <path d="M6.61 6.61A13.52 13.52 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61" />
-      <line x1="2" x2="22" y1="2" y2="22" />
-    </svg>
-  )
-}
-
 export default function SuperAdminLoginPage({ onLoginSuccess }: SuperAdminLoginPageProps) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [showPassword, setShowPassword] = useState(false) // <--- State untuk toggle visibilitas password
+  const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
 
@@ -50,11 +32,9 @@ export default function SuperAdminLoginPage({ onLoginSuccess }: SuperAdminLoginP
 
       const { token, nama } = response.data
       
-      // Simpan token admin ke localStorage khusus superadmin
       localStorage.setItem('superadmin_token', token)
       localStorage.setItem('superadmin_name', nama)
 
-      // Panggil callback untuk mengubah state di App.tsx
       onLoginSuccess(token, nama)
     } catch (err: any) {
       if (err.response && err.response.data && err.response.data.error) {
@@ -120,13 +100,10 @@ export default function SuperAdminLoginPage({ onLoginSuccess }: SuperAdminLoginP
           )}
 
           <form className="flex flex-col gap-4" onSubmit={handleAdminLogin}>
-            <div>
-              <label className="mb-1.5 block text-[13px] font-semibold text-gray-700" htmlFor="admin-email">
-                Email Administrator
-              </label>
-              <input
+            <div className="grid gap-1.5">
+              <Label htmlFor="admin-email">Email Administrator</Label>
+              <Input
                 id="admin-email"
-                className="w-full rounded-xl border border-gray-300 bg-white px-3.5 py-3 text-sm text-tp-text outline-none transition focus:border-tp-green focus:shadow-[0_0_0_3px_rgba(15,76,54,0.12)]"
                 type="email"
                 placeholder="super.admin@teachpartner.com"
                 value={email}
@@ -136,14 +113,11 @@ export default function SuperAdminLoginPage({ onLoginSuccess }: SuperAdminLoginP
               />
             </div>
 
-            <div>
-              <label className="mb-1.5 block text-[13px] font-semibold text-gray-700" htmlFor="admin-password">
-                Password
-              </label>
+            <div className="grid gap-1.5">
+              <Label htmlFor="admin-password">Password</Label>
               <div className="relative flex items-center">
-                <input
+                <Input
                   id="admin-password"
-                  className="w-full rounded-xl border border-gray-300 bg-white px-3.5 py-3 pr-10 text-sm text-tp-text outline-none transition focus:border-tp-green focus:shadow-[0_0_0_3px_rgba(15,76,54,0.12)]"
                   type={showPassword ? 'text' : 'password'}
                   placeholder="••••••••"
                   value={password}
@@ -158,18 +132,18 @@ export default function SuperAdminLoginPage({ onLoginSuccess }: SuperAdminLoginP
                   tabIndex={-1}
                   aria-label="Toggle password visibility"
                 >
-                  {showPassword ? <IconEyeOff /> : <IconEye />}
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
               </div>
             </div>
 
-            <button
+            <Button
               type="submit"
-              className="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-tp-green px-[18px] py-[11px] text-sm font-semibold text-white transition hover:bg-tp-green-hover active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-65"
               disabled={loading}
+              className="mt-2 w-full bg-tp-green hover:bg-tp-green-hover text-white font-semibold py-2.5 rounded-xl transition active:scale-[0.98]"
             >
               {loading ? 'Memverifikasi...' : 'Masuk sebagai Superadmin'}
-            </button>
+            </Button>
           </form>
 
           <div className="mt-6 text-center text-xs text-tp-muted">
