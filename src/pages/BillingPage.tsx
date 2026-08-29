@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react'
 import axios from 'axios'
 import { supabase } from '../lib/supabaseClient' 
+import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
+import { Wallet, Zap, ShieldCheck } from 'lucide-react'
 
 declare global {
   interface Window {
@@ -16,7 +19,6 @@ interface PackageItem {
   popular?: boolean
 }
 
-//feat : Masih hardcode kalo bisa dibuat design bisa atur token balance dan price serta desc-nya dari superadmin
 const TOKEN_PACKAGES: PackageItem[] = [
   {
     name: 'Starter',
@@ -42,13 +44,12 @@ const TOKEN_PACKAGES: PackageItem[] = [
 export default function BillingPage() {
   const [tokenBalance, setTokenBalance] = useState<number>(0)
   const [loading, setLoading] = useState<boolean>(true)
-  const [selectedPkg, setSelectedPkg] = useState<PackageItem>(TOKEN_PACKAGES[1]) // Default Profesional
+  const [selectedPkg, setSelectedPkg] = useState<PackageItem>(TOKEN_PACKAGES[1])
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false)
   const [agreed, setAgreed] = useState<boolean>(false)
   const [submitting, setSubmitting] = useState<boolean>(false)
 
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080'
-
 
   useEffect(() => {
     fetchProfile()
@@ -116,13 +117,12 @@ export default function BillingPage() {
 
       setIsModalOpen(false)
 
-      // Panggil Midtrans Snap Pop-up
       if (window.snap) {
         window.snap.pay(snap_token, {
           onSuccess: function (result: any) {
             alert('Pembayaran berhasil! Token akan otomatis ditambahkan ke akun Anda.')
             console.log(result)
-            fetchProfile() // Refresh saldo token
+            fetchProfile()
           },
           onPending: function (result: any) {
             alert('Menunggu pembayaran Anda. Selesaikan pembayaran sesuai instruksi.')
@@ -147,98 +147,104 @@ export default function BillingPage() {
   }
 
   return (
-    <div className="min-h-screen bg-tp-bg p-6 sm:p-10">
-      <div className="mx-auto max-w-5xl">
+    <div className="min-h-screen bg-tp-bg p-6 sm:p-10 space-y-6">
+      <div className="mx-auto max-w-5xl space-y-8">
         
         {/* Tombol Kembali & Header */}
-        <div className="mb-8">
+        <div>
           <a href="/" className="text-sm font-semibold text-tp-green hover:underline">
             ← Kembali ke aplikasi
           </a>
         </div>
 
         {/* Kotak Saldo Token */}
-        <div className="mb-10 flex flex-col justify-between gap-6 rounded-3xl border border-tp-border bg-white p-6 shadow-tp-md sm:flex-row sm:items-center sm:p-8">
-          <div className="flex items-center gap-4">
-            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-100 text-tp-green">
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 12V7H5a2 2 0 0 1 0-4h14v4" />
-                <path d="M3 5v14a2 2 0 0 0 2 2h16v-5" />
-                <path d="M18 12a2 2 0 0 0 0 4h4v-4Z" />
-              </svg>
+        <Card className="rounded-3xl border-tp-border bg-white shadow-sm">
+          <CardContent className="flex flex-col justify-between gap-6 p-6 sm:flex-row sm:items-center sm:p-8">
+            <div className="flex items-center gap-4">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-100 text-tp-green">
+                <Wallet size={28} />
+              </div>
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wider text-tp-muted">Saldo Token</p>
+                <h1 className="text-3xl font-extrabold text-tp-text">
+                  {loading ? '...' : `${tokenBalance} token`}
+                </h1>
+              </div>
             </div>
-            <div>
-              <p className="text-xs font-bold uppercase tracking-wider text-tp-muted">Saldo Token</p>
-              <h1 className="text-3xl font-extrabold text-tp-text">
-                {loading ? '...' : `${tokenBalance} token`}
-              </h1>
-            </div>
-          </div>
 
-          <button
-            onClick={() => setIsModalOpen(true)}
-            className="inline-flex items-center justify-center gap-2 rounded-xl bg-tp-green px-6 py-3.5 text-sm font-semibold text-white shadow-md transition hover:bg-tp-green-hover active:scale-[0.98]"
-          >
-            ⚡ Beli Token Sekarang
-          </button>
-        </div>
+            <Button
+              onClick={() => setIsModalOpen(true)}
+              className="bg-tp-green hover:bg-tp-green-hover text-white rounded-xl h-12 px-6 gap-2 font-semibold shadow-md active:scale-[0.98]"
+            >
+              <Zap size={18} /> Beli Token Sekarang
+            </Button>
+          </CardContent>
+        </Card>
 
         {/* Informasi Pembayaran Aman */}
-        <div className="mb-10 rounded-2xl border border-tp-border bg-emerald-50/50 p-4 text-xs text-tp-text sm:text-sm">
-          <span className="font-bold text-tp-green">Pembayaran aman — token aktif otomatis:</span>
-          <span className="text-tp-muted"> 1) Pilih paket → 2) Bayar pakai QRIS / GoPay / Transfer Bank → 3) Token masuk otomatis dalam &lt; 1 menit.</span>
+        <div className="rounded-2xl border border-tp-border bg-emerald-50/50 p-4 text-xs text-tp-text sm:text-sm flex items-center gap-2">
+          <ShieldCheck size={20} className="text-tp-green shrink-0" />
+          <div>
+            <span className="font-bold text-tp-green">Pembayaran aman — token aktif otomatis:</span>
+            <span className="text-tp-muted"> 1) Pilih paket → 2) Bayar pakai QRIS / GoPay / Transfer Bank → 3) Token masuk otomatis dalam &lt; 1 menit.</span>
+          </div>
         </div>
 
         {/* Pilihan Paket Token */}
-        <h2 className="mb-4 text-xl font-bold tracking-tight text-tp-text">Paket Token</h2>
-        <p className="mb-6 text-sm text-tp-muted">Klik paket untuk memilih dan melanjutkan pembayaran.</p>
+        <div>
+          <h2 className="text-xl font-bold tracking-tight text-tp-text">Paket Token</h2>
+          <p className="text-sm text-tp-muted mb-6">Klik paket untuk memilih dan melanjutkan pembayaran.</p>
 
-        <div className="grid gap-6 md:grid-cols-3">
-          {TOKEN_PACKAGES.map((pkg) => {
-            const isSelected = selectedPkg.name === pkg.name
-            return (
-              <div
-                key={pkg.name}
-                onClick={() => setSelectedPkg(pkg)}
-                className={`relative flex cursor-pointer flex-col justify-between rounded-3xl border p-6 transition-all bg-white ${
-                  isSelected ? 'border-tp-green ring-2 ring-tp-green/20 shadow-lg' : 'border-tp-border hover:border-gray-400'
-                }`}
-              >
-                {pkg.popular && (
-                  <span className="absolute -top-3 right-6 rounded-full bg-emerald-500 px-3 py-0.5 text-[11px] font-bold text-white shadow">
-                    POPULER
-                  </span>
-                )}
-
-                <div>
-                  <h3 className="text-sm font-bold text-tp-muted">{pkg.name}</h3>
-                  <div className="my-2 flex items-baseline gap-1.5">
-                    <span className="text-4xl font-extrabold text-tp-text">{pkg.tokens}</span>
-                    <span className="text-sm font-semibold text-tp-muted">token</span>
-                  </div>
-                  <p className="text-lg font-bold text-tp-green">
-                    Rp {pkg.price.toLocaleString('id-ID')}
-                  </p>
-                  <p className="mt-4 text-xs leading-relaxed text-tp-muted">{pkg.description}</p>
-                </div>
-
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    setSelectedPkg(pkg)
-                    setIsModalOpen(true)
-                  }}
-                  className={`mt-6 w-full rounded-xl py-2.5 text-xs font-bold transition ${
-                    isSelected
-                      ? 'bg-tp-green text-white hover:bg-tp-green-hover'
-                      : 'bg-gray-100 text-tp-text hover:bg-gray-200'
+          <div className="grid gap-6 md:grid-cols-3">
+            {TOKEN_PACKAGES.map((pkg) => {
+              const isSelected = selectedPkg.name === pkg.name
+              return (
+                <Card
+                  key={pkg.name}
+                  onClick={() => setSelectedPkg(pkg)}
+                  className={`relative flex cursor-pointer flex-col justify-between rounded-3xl border p-6 transition-all bg-white ${
+                    isSelected ? 'border-tp-green ring-2 ring-tp-green/20 shadow-lg' : 'border-tp-border hover:border-gray-400'
                   }`}
                 >
-                  Pilih {pkg.name}
-                </button>
-              </div>
-            )
-          })}
+                  {pkg.popular && (
+                    <span className="absolute -top-3 right-6 rounded-full bg-emerald-500 px-3 py-0.5 text-[11px] font-bold text-white shadow">
+                      POPULER
+                    </span>
+                  )}
+
+                  <CardContent className="p-0 flex flex-col justify-between h-full space-y-6">
+                    <div>
+                      <h3 className="text-sm font-bold text-tp-muted">{pkg.name}</h3>
+                      <div className="my-2 flex items-baseline gap-1.5">
+                        <span className="text-4xl font-extrabold text-tp-text">{pkg.tokens}</span>
+                        <span className="text-sm font-semibold text-tp-muted">token</span>
+                      </div>
+                      <p className="text-lg font-bold text-tp-green">
+                        Rp {pkg.price.toLocaleString('id-ID')}
+                      </p>
+                      <p className="mt-4 text-xs leading-relaxed text-tp-muted">{pkg.description}</p>
+                    </div>
+
+                    <Button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setSelectedPkg(pkg)
+                        setIsModalOpen(true)
+                      }}
+                      variant={isSelected ? 'default' : 'outline'}
+                      className={`w-full rounded-xl py-2.5 text-xs font-bold transition ${
+                        isSelected
+                          ? 'bg-tp-green text-white hover:bg-tp-green-hover'
+                          : 'bg-gray-100 text-tp-text hover:bg-gray-200 border-transparent'
+                      }`}
+                    >
+                      Pilih {pkg.name}
+                    </Button>
+                  </CardContent>
+                </Card>
+              )
+            })}
+          </div>
         </div>
 
       </div>
@@ -246,22 +252,24 @@ export default function BillingPage() {
       {/* MODAL KONFIRMASI PEMBELIAN */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-md overflow-hidden rounded-3xl bg-white p-6 shadow-2xl sm:p-8">
-            <h3 className="text-xl font-bold text-tp-text">Konfirmasi Pembelian</h3>
-            <p className="mt-1 text-xs text-tp-muted">Pilih paket, lalu bayar dengan metode favorit Anda.</p>
+          <div className="w-full max-w-md overflow-hidden rounded-3xl bg-white p-6 shadow-2xl sm:p-8 space-y-6">
+            <div>
+              <h3 className="text-xl font-bold text-tp-text">Konfirmasi Pembelian</h3>
+              <p className="mt-1 text-xs text-tp-muted">Pilih paket, lalu bayar dengan metode favorit Anda.</p>
+            </div>
 
             {/* Ringkasan Paket Terpilih */}
-            <div className="my-6 rounded-2xl border border-tp-border bg-gray-50 p-4">
-              <div className="flex justify-between items-center mb-2">
+            <div className="rounded-2xl border border-tp-border bg-gray-50 p-4 space-y-2">
+              <div className="flex justify-between items-center">
                 <span className="font-bold text-sm text-tp-text">Paket {selectedPkg.name}</span>
                 <span className="font-extrabold text-tp-green">{selectedPkg.tokens} Token</span>
               </div>
               <p className="text-2xl font-black text-tp-text">Rp {selectedPkg.price.toLocaleString('id-ID')}</p>
-              <p className="mt-2 text-[11px] text-tp-muted">{selectedPkg.description}</p>
+              <p className="text-[11px] text-tp-muted">{selectedPkg.description}</p>
             </div>
 
             {/* Checkbox Persetujuan */}
-            <div className="mb-6 flex items-start gap-2.5">
+            <div className="flex items-start gap-2.5">
               <input
                 type="checkbox"
                 id="agree"
@@ -276,21 +284,22 @@ export default function BillingPage() {
 
             {/* Tombol Aksi */}
             <div className="flex gap-3">
-              <button
+              <Button
                 type="button"
+                variant="outline"
                 onClick={() => setIsModalOpen(false)}
-                className="flex-1 rounded-xl border border-tp-border bg-white py-3 text-xs font-semibold text-tp-text transition hover:bg-gray-50"
+                className="flex-1 rounded-xl border-tp-border bg-white py-3 text-xs font-semibold text-tp-text hover:bg-gray-50 h-11"
               >
                 Batal
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
                 disabled={submitting}
                 onClick={handleCheckout}
-                className="flex-1 rounded-xl bg-tp-green py-3 text-xs font-semibold text-white transition hover:bg-tp-green-hover disabled:opacity-50"
+                className="flex-1 rounded-xl bg-tp-green hover:bg-tp-green-hover py-3 text-xs font-semibold text-white h-11 disabled:opacity-50"
               >
                 {loading || submitting ? 'Memproses...' : 'Bayar Sekarang'}
-              </button>
+              </Button>
             </div>
           </div>
         </div>

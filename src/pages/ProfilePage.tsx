@@ -1,16 +1,13 @@
 import React, { useEffect, useState } from 'react'
 import axios from 'axios'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Card, CardContent } from '@/components/ui/card'
+import { Save } from 'lucide-react'
 
 // Single-flight cache untuk mencegah request duplikat
 let fetchPromise: Promise<any> | null = null
-
-const fieldClass =
-  'w-full rounded-xl border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-tp-text outline-none transition focus:border-tp-green focus:shadow-[0_0_0_3px_rgba(15,76,54,0.12)]'
-
-const labelClass = 'mb-1.5 block text-[13px] font-semibold text-gray-700'
-
-const sectionTitleClass =
-  'mb-3 border-b border-slate-200 pb-1.5 text-base font-semibold text-slate-900'
 
 const gridClass = 'grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3'
 
@@ -26,7 +23,6 @@ export default function ProfilePage({ session }: { session: any }) {
       try {
         setLoading(true)
         
-        // Single-flight: hanya buat 1 promise untuk semua panggilan
         if (!fetchPromise) {
           fetchPromise = axios.get(`${API_URL}/api/profile`, {
             headers: { Authorization: `Bearer ${session.access_token}` },
@@ -40,7 +36,6 @@ export default function ProfilePage({ session }: { session: any }) {
         }
       } catch (err) {
         console.error('Gagal memuat profil:', err)
-        // Reset cache saat error agar bisa dicoba lagi
         fetchPromise = null
         if (isMounted) setProfile({})
       } finally {
@@ -52,8 +47,6 @@ export default function ProfilePage({ session }: { session: any }) {
 
     return () => {
       isMounted = false
-      // Reset cache saat unmount (opsional)
-      // fetchPromise = null
     }
   }, [session, API_URL])
 
@@ -73,123 +66,140 @@ export default function ProfilePage({ session }: { session: any }) {
     }
   }
 
-  if (loading) return <p className="text-tp-muted">Memuat data identitas...</p>
+  if (loading) {
+    return (
+      <div className="p-6 text-center text-sm text-tp-muted">
+        Memuat data identitas...
+      </div>
+    )
+  }
 
   return (
-    <div className="rounded-tp border border-tp-border bg-white p-6 shadow-tp sm:p-[30px]">
-      <div className="mb-6">
-        <h1 className="mb-1.5 text-2xl font-bold tracking-tight text-tp-text">
-          Identitas Perangkat & Sekolah
-        </h1>
-        <p className="text-sm text-tp-muted">
-          Lengkapi seluruh data administrasi ini agar otomatis tersemat pada dokumen asesmen dan jurnal Anda.
-        </p>
-      </div>
-
-      <form onSubmit={handleSubmit} className="flex flex-col gap-6">
+    <Card className="rounded-3xl border-tp-border bg-white shadow-sm">
+      <CardContent className="p-6 sm:p-8 space-y-6">
         <div>
-          <h3 className={sectionTitleClass}>1. Data Guru & Akademik</h3>
-          <div className={gridClass}>
-            <div>
-              <label className={labelClass}>Nama Guru</label>
-              <input className={fieldClass} name="nama_guru" value={profile.nama_guru || ''} onChange={handleChange} />
-            </div>
-            <div>
-              <label className={labelClass}>NIP Guru</label>
-              <input className={fieldClass} name="nip_guru" value={profile.nip_guru || ''} onChange={handleChange} />
-            </div>
-            <div>
-              <label className={labelClass}>Mata Pelajaran</label>
-              <input className={fieldClass} name="mata_pelajaran" value={profile.mata_pelajaran || ''} onChange={handleChange} />
-            </div>
-            <div>
-              <label className={labelClass}>Fase</label>
-              <input className={fieldClass} name="fase" value={profile.fase || ''} onChange={handleChange} />
-            </div>
-            <div>
-              <label className={labelClass}>Kelas</label>
-              <input className={fieldClass} name="kelas" value={profile.kelas || ''} onChange={handleChange} />
-            </div>
-            <div>
-              <label className={labelClass}>Semester</label>
-              <input className={fieldClass} name="semester" value={profile.semester || ''} onChange={handleChange} />
-            </div>
-            <div>
-              <label className={labelClass}>Tahun Pelajaran</label>
-              <input className={fieldClass} name="tahun_pelajaran" value={profile.tahun_pelajaran || ''} onChange={handleChange} />
+          <h1 className="mb-1.5 text-2xl font-bold tracking-tight text-tp-text">
+            Identitas Perangkat & Sekolah
+          </h1>
+          <p className="text-sm text-tp-muted">
+            Lengkapi seluruh data administrasi ini agar otomatis tersemat pada dokumen asesmen dan jurnal Anda.
+          </p>
+        </div>
+
+        <form onSubmit={handleSubmit} className="flex flex-col gap-6">
+          {/* Bagian 1 */}
+          <div className="space-y-4">
+            <h3 className="border-b border-slate-200 pb-2 text-base font-semibold text-slate-900">
+              1. Data Guru & Akademik
+            </h3>
+            <div className={gridClass}>
+              <div className="grid gap-1.5">
+                <Label>Nama Guru</Label>
+                <Input name="nama_guru" value={profile.nama_guru || ''} onChange={handleChange} />
+              </div>
+              <div className="grid gap-1.5">
+                <Label>NIP Guru</Label>
+                <Input name="nip_guru" value={profile.nip_guru || ''} onChange={handleChange} />
+              </div>
+              <div className="grid gap-1.5">
+                <Label>Mata Pelajaran</Label>
+                <Input name="mata_pelajaran" value={profile.mata_pelajaran || ''} onChange={handleChange} />
+              </div>
+              <div className="grid gap-1.5">
+                <Label>Fase</Label>
+                <Input name="fase" value={profile.fase || ''} onChange={handleChange} />
+              </div>
+              <div className="grid gap-1.5">
+                <Label>Kelas</Label>
+                <Input name="kelas" value={profile.kelas || ''} onChange={handleChange} />
+              </div>
+              <div className="grid gap-1.5">
+                <Label>Semester</Label>
+                <Input name="semester" value={profile.semester || ''} onChange={handleChange} />
+              </div>
+              <div className="grid gap-1.5">
+                <Label>Tahun Pelajaran</Label>
+                <Input name="tahun_pelajaran" value={profile.tahun_pelajaran || ''} onChange={handleChange} />
+              </div>
             </div>
           </div>
-        </div>
 
-        <div>
-          <h3 className={sectionTitleClass}>2. Data Satuan Pendidikan & Wilayah</h3>
-          <div className={gridClass}>
-            <div>
-              <label className={labelClass}>Nama Sekolah</label>
-              <input className={fieldClass} name="nama_sekolah" value={profile.nama_sekolah || ''} onChange={handleChange} />
-            </div>
-            <div>
-              <label className={labelClass}>NPSN</label>
-              <input className={fieldClass} name="npsn" value={profile.npsn || ''} onChange={handleChange} />
-            </div>
-            <div>
-              <label className={labelClass}>Alamat Sekolah</label>
-              <input className={fieldClass} name="alamat_sekolah" value={profile.alamat_sekolah || ''} onChange={handleChange} />
-            </div>
-            <div>
-              <label className={labelClass}>Kecamatan / Kabupaten</label>
-              <input className={fieldClass} name="kecamatan_kabupaten" value={profile.kecamatan_kabupaten || ''} onChange={handleChange} />
-            </div>
-            <div>
-              <label className={labelClass}>Kota / Kabupaten</label>
-              <input className={fieldClass} name="kota_kabupaten" value={profile.kota_kabupaten || ''} onChange={handleChange} />
-            </div>
-            <div>
-              <label className={labelClass}>Kode Pos</label>
-              <input className={fieldClass} name="kode_pos" value={profile.kode_pos || ''} onChange={handleChange} />
-            </div>
-            <div>
-              <label className={labelClass}>Telepon Sekolah</label>
-              <input className={fieldClass} name="telepon_sekolah" value={profile.telepon_sekolah || ''} onChange={handleChange} />
-            </div>
-            <div>
-              <label className={labelClass}>Email Sekolah</label>
-              <input className={fieldClass} name="email_sekolah" value={profile.email_sekolah || ''} onChange={handleChange} />
-            </div>
-            <div>
-              <label className={labelClass}>Website Sekolah</label>
-              <input className={fieldClass} name="website_sekolah" value={profile.website_sekolah || ''} onChange={handleChange} />
+          {/* Bagian 2 */}
+          <div className="space-y-4">
+            <h3 className="border-b border-slate-200 pb-2 text-base font-semibold text-slate-900">
+              2. Data Satuan Pendidikan & Wilayah
+            </h3>
+            <div className={gridClass}>
+              <div className="grid gap-1.5">
+                <Label>Nama Sekolah</Label>
+                <Input name="nama_sekolah" value={profile.nama_sekolah || ''} onChange={handleChange} />
+              </div>
+              <div className="grid gap-1.5">
+                <Label>NPSN</Label>
+                <Input name="npsn" value={profile.npsn || ''} onChange={handleChange} />
+              </div>
+              <div className="grid gap-1.5">
+                <Label>Alamat Sekolah</Label>
+                <Input name="alamat_sekolah" value={profile.alamat_sekolah || ''} onChange={handleChange} />
+              </div>
+              <div className="grid gap-1.5">
+                <Label>Kecamatan / Kabupaten</Label>
+                <Input name="kecamatan_kabupaten" value={profile.kecamatan_kabupaten || ''} onChange={handleChange} />
+              </div>
+              <div className="grid gap-1.5">
+                <Label>Kota / Kabupaten</Label>
+                <Input name="kota_kabupaten" value={profile.kota_kabupaten || ''} onChange={handleChange} />
+              </div>
+              <div className="grid gap-1.5">
+                <Label>Kode Pos</Label>
+                <Input name="kode_pos" value={profile.kode_pos || ''} onChange={handleChange} />
+              </div>
+              <div className="grid gap-1.5">
+                <Label>Telepon Sekolah</Label>
+                <Input name="telepon_sekolah" value={profile.telepon_sekolah || ''} onChange={handleChange} />
+              </div>
+              <div className="grid gap-1.5">
+                <Label>Email Sekolah</Label>
+                <Input name="email_sekolah" value={profile.email_sekolah || ''} onChange={handleChange} />
+              </div>
+              <div className="grid gap-1.5">
+                <Label>Website Sekolah</Label>
+                <Input name="website_sekolah" value={profile.website_sekolah || ''} onChange={handleChange} />
+              </div>
             </div>
           </div>
-        </div>
 
-        <div>
-          <h3 className={sectionTitleClass}>3. Data Kepala Sekolah & Validasi</h3>
-          <div className={gridClass}>
-            <div>
-              <label className={labelClass}>Nama Kepala Sekolah</label>
-              <input className={fieldClass} name="nama_kepala_sekolah" value={profile.nama_kepala_sekolah || ''} onChange={handleChange} />
-            </div>
-            <div>
-              <label className={labelClass}>NIP Kepala Sekolah</label>
-              <input className={fieldClass} name="nip_kepala_sekolah" value={profile.nip_kepala_sekolah || ''} onChange={handleChange} />
-            </div>
-            <div>
-              <label className={labelClass}>Tanggal Penandatanganan</label>
-              <input className={fieldClass} name="tanggal_penandatanganan" value={profile.tanggal_penandatanganan || ''} onChange={handleChange} />
+          {/* Bagian 3 */}
+          <div className="space-y-4">
+            <h3 className="border-b border-slate-200 pb-2 text-base font-semibold text-slate-900">
+              3. Data Kepala Sekolah & Validasi
+            </h3>
+            <div className={gridClass}>
+              <div className="grid gap-1.5">
+                <Label>Nama Kepala Sekolah</Label>
+                <Input name="nama_kepala_sekolah" value={profile.nama_kepala_sekolah || ''} onChange={handleChange} />
+              </div>
+              <div className="grid gap-1.5">
+                <Label>NIP Kepala Sekolah</Label>
+                <Input name="nip_kepala_sekolah" value={profile.nip_kepala_sekolah || ''} onChange={handleChange} />
+              </div>
+              <div className="grid gap-1.5">
+                <Label>Tanggal Penandatanganan</Label>
+                <Input name="tanggal_penandatanganan" value={profile.tanggal_penandatanganan || ''} onChange={handleChange} />
+              </div>
             </div>
           </div>
-        </div>
 
-        <div>
-          <button
-            type="submit"
-            className="inline-flex items-center justify-center rounded-xl bg-tp-green px-6 py-3 text-sm font-semibold text-white transition hover:bg-tp-green-hover"
-          >
-            Simpan Seluruh Perubahan Profil
-          </button>
-        </div>
-      </form>
-    </div>
+          <div>
+            <Button
+              type="submit"
+              className="bg-tp-green hover:bg-tp-green-hover text-white rounded-xl h-11 px-6 gap-2 font-semibold"
+            >
+              <Save size={16} /> Simpan Seluruh Perubahan Profil
+            </Button>
+          </div>
+        </form>
+      </CardContent>
+    </Card>
   )
 }

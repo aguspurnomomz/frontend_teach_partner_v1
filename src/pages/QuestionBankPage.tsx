@@ -2,6 +2,11 @@ import React, { useState } from 'react'
 import { createQuestionBank } from '../services/questionService'
 import { supabase } from '../lib/supabaseClient'
 import axios from 'axios'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { Sparkles, Plus, Trash2, Save, ArrowLeft } from 'lucide-react'
 
 export default function QuestionBankPage({ onBack }: { onBack: () => void }) {
   const [title, setTitle] = useState('')
@@ -12,7 +17,6 @@ export default function QuestionBankPage({ onBack }: { onBack: () => void }) {
   const [isPublic, setIsPublic] = useState(false)
   const [loading, setLoading] = useState(false)
 
- 
   const [aiTopic, setAiTopic] = useState('')
   const [aiCount, setAiCount] = useState(3)
   const [aiType, setAiType] = useState('multiple_choice')
@@ -21,7 +25,6 @@ export default function QuestionBankPage({ onBack }: { onBack: () => void }) {
 
   const API_URL = import.meta.env.VITE_API_URL
 
- 
   const [questions, setQuestions] = useState([
     {
       question_text: '',
@@ -33,7 +36,6 @@ export default function QuestionBankPage({ onBack }: { onBack: () => void }) {
     }
   ])
 
-  
   const addQuestion = () => {
     setQuestions([
       ...questions,
@@ -48,7 +50,6 @@ export default function QuestionBankPage({ onBack }: { onBack: () => void }) {
     ])
   }
 
-
   const removeQuestion = (index: number) => {
     const updated = questions.filter((_, i) => i !== index)
     setQuestions(updated)
@@ -60,7 +61,6 @@ export default function QuestionBankPage({ onBack }: { onBack: () => void }) {
     setQuestions(updated)
   }
 
- 
   const handleAIGenerate = async () => {
     if (!aiTopic) {
       alert('Mohon masukkan topik materi terlebih dahulu untuk AI.')
@@ -85,7 +85,6 @@ export default function QuestionBankPage({ onBack }: { onBack: () => void }) {
         }
       )
 
-    
       if (Array.isArray(response.data) && response.data.length > 0) {
         setQuestions(response.data)
         alert('Berhasil men-generate soal dengan AI!')
@@ -98,7 +97,6 @@ export default function QuestionBankPage({ onBack }: { onBack: () => void }) {
       setGenerating(false)
     }
   }
-
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -124,158 +122,288 @@ export default function QuestionBankPage({ onBack }: { onBack: () => void }) {
   }
 
   return (
-    <div style={{ margin: '30px auto', padding: '30px', background: 'white', borderRadius: '12px', boxShadow: '0 4px 15px rgba(0,0,0,0.05)', fontFamily: 'sans-serif' }}>
-      {/* TODO button kembali ke dashboard */}
-      {/* <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-        <h2 style={{ color: '#0f172a', margin: 0 }}>Buat Bank Soal & Asesmen</h2>
-        <button onClick={onBack} style={{ padding: '8px 14px', background: '#e2e8f0', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 600 }}>Kembali ke Dashboard</button>
-      </div> */}
-
-      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+    <div className="min-h-screen bg-tp-bg p-4 sm:p-8">
+      <div className="mx-auto max-w-8xl space-y-6">
         
-        {/* Informasi Umum Paket Soal */}
-        <div style={{ background: '#f8fafc', padding: '20px', borderRadius: '8px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-          <h3 style={{ margin: '0 0 5px 0', fontSize: '16px', color: '#334155' }}>Informasi Paket Soal</h3>
+        {/* Tombol Kembali / Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-tp-text">Buat Bank Soal & Asesmen</h1>
+            <p className="text-sm text-tp-muted">Susun paket ujian mandiri atau manfaatkan Asisten AI.</p>
+          </div>
+          <Button 
+            variant="outline" 
+            onClick={onBack}
+            className="rounded-xl gap-2 border-tp-border bg-white text-tp-text hover:bg-gray-50"
+          >
+            <ArrowLeft size={16} /> Kembali
+          </Button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-6">
           
-          <div>
-            <label style={{ fontSize: '13px', fontWeight: 600, display: 'block', marginBottom: '4px' }}>Judul Paket Ujian / Modul</label>
-            <input type="text" placeholder="Contoh: Penilaian Harian Sistem Pencernaan Manusia" value={title} onChange={(e) => setTitle(e.target.value)} required style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e1' }} />
-          </div>
-
-          <div style={{ display: 'flex', gap: '15px' }}>
-            <div style={{ flex: 1 }}>
-              <label style={{ fontSize: '13px', fontWeight: 600, display: 'block', marginBottom: '4px' }}>Mata Pelajaran</label>
-              <input type="text" placeholder="IPA / Matematika" value={subject} onChange={(e) => setSubject(e.target.value)} required style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e1' }} />
-            </div>
-            <div style={{ flex: 1 }}>
-              <label style={{ fontSize: '13px', fontWeight: 600, display: 'block', marginBottom: '4px' }}>Fase / Kelas</label>
-              <input type="text" placeholder="Fase D / Kelas 8" value={phase} onChange={(e) => setPhase(e.target.value)} required style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e1' }} />
-            </div>
-          </div>
-
-          <div>
-            <label style={{ fontSize: '13px', fontWeight: 600, display: 'block', marginBottom: '4px' }}>Deskripsi Singkat</label>
-            <textarea placeholder="Keterangan tambahan untuk ujian ini..." value={description} onChange={(e) => setDescription(e.target.value)} rows={2} style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e1' }} />
-          </div>
-
-          {/* Pengaturan Marketplace & Monetisasi Token */}
-          <div style={{ display: 'flex', gap: '20px', alignItems: 'center', marginTop: '5px' }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: 600 }}>
-              <input type="checkbox" checked={isPublic} onChange={(e) => setIsPublic(e.target.checked)} style={{ width: '16px', height: '16px' }} />
-              Bagikan ke Marketplace Bank Soal (Jual ke Guru Lain)
-            </label>
-
-            {isPublic && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ fontSize: '13px', fontWeight: 600 }}>Harga Token:</span>
-                <input type="number" value={priceInTokens} onChange={(e) => setPriceInTokens(Number(e.target.value))} min={0} style={{ width: '80px', padding: '6px', borderRadius: '6px', border: '1px solid #cbd5e1' }} />
+          {/* Card Informasi Paket Soal */}
+          <Card className="rounded-2xl border-tp-border shadow-sm">
+            <CardHeader>
+              <CardTitle className="text-lg">Informasi Paket Soal</CardTitle>
+              <CardDescription>Atur detail dasar, mata pelajaran, dan opsi monetisasi.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-1.5">
+                <Label htmlFor="title">Judul Paket Ujian / Modul</Label>
+                <Input 
+                  id="title" 
+                  placeholder="Contoh: Penilaian Harian Sistem Pencernaan Manusia" 
+                  value={title} 
+                  onChange={(e) => setTitle(e.target.value)} 
+                  required 
+                />
               </div>
-            )}
-          </div>
-        </div>
 
-        {/* Panel Generator AI */}
-        <div style={{ background: '#ecfdf5', padding: '20px', borderRadius: '8px', border: '1px solid #a7f3d0', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-          <h3 style={{ margin: '0 0 5px 0', fontSize: '16px', color: '#065f46' }}>✨ Asisten Generator Soal (AI)</h3>
-          
-          <div>
-            <label style={{ fontSize: '13px', fontWeight: 600, display: 'block', marginBottom: '4px', color: '#047857' }}>Topik / Materi Pembelajaran</label>
-            <input type="text" placeholder="Contoh: Enzim pencernaan lambung dan fungsinya" value={aiTopic} onChange={(e) => setAiTopic(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #6ee7b7', background: 'white' }} />
-          </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid gap-1.5">
+                  <Label htmlFor="subject">Mata Pelajaran</Label>
+                  <Input 
+                    id="subject" 
+                    placeholder="IPA / Matematika" 
+                    value={subject} 
+                    onChange={(e) => setSubject(e.target.value)} 
+                    required 
+                  />
+                </div>
+                <div className="grid gap-1.5">
+                  <Label htmlFor="phase">Fase / Kelas</Label>
+                  <Input 
+                    id="phase" 
+                    placeholder="Fase D / Kelas 8" 
+                    value={phase} 
+                    onChange={(e) => setPhase(e.target.value)} 
+                    required 
+                  />
+                </div>
+              </div>
 
-          <div style={{ display: 'flex', gap: '15px' }}>
-            <div style={{ flex: 1 }}>
-              <label style={{ fontSize: '12px', fontWeight: 600, display: 'block', marginBottom: '4px', color: '#047857' }}>Jumlah Soal</label>
-              <input type="number" min={1} max={10} value={aiCount} onChange={(e) => setAiCount(Number(e.target.value))} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #6ee7b7', background: 'white' }} />
-            </div>
-            <div style={{ flex: 1 }}>
-              <label style={{ fontSize: '12px', fontWeight: 600, display: 'block', marginBottom: '4px', color: '#047857' }}>Tipe Soal</label>
-              <select value={aiType} onChange={(e) => setAiType(e.target.value)} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #6ee7b7', background: 'white', fontSize: '13px' }}>
-                <option value="multiple_choice">Pilihan Ganda</option>
-                <option value="essay">Essay / Uraian</option>
-                <option value="short_answer">Isian Singkat</option>
-              </select>
-            </div>
-            <div style={{ flex: 1 }}>
-              <label style={{ fontSize: '12px', fontWeight: 600, display: 'block', marginBottom: '4px', color: '#047857' }}>Level Kognitif</label>
-              <select value={aiCognitive} onChange={(e) => setAiCognitive(e.target.value)} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #6ee7b7', background: 'white', fontSize: '13px' }}>
-                <option value="C2">C2 - Memahami</option>
-                <option value="C3">C3 - Penerapan</option>
-                <option value="C4">C4 - Analisis (HOTS)</option>
-              </select>
-            </div>
-          </div>
+              <div className="grid gap-1.5">
+                <Label htmlFor="description">Deskripsi Singkat</Label>
+                <textarea 
+                  id="description"
+                  className="w-full rounded-xl border border-gray-300 bg-white px-3.5 py-3 text-sm text-tp-text outline-none transition focus:border-tp-green focus:shadow-[0_0_0_3px_rgba(15,76,54,0.12)]"
+                  placeholder="Keterangan tambahan untuk ujian ini..." 
+                  value={description} 
+                  onChange={(e) => setDescription(e.target.value)} 
+                  rows={2} 
+                />
+              </div>
 
-          <button type="button" onClick={handleAIGenerate} disabled={generating} style={{ padding: '10px', background: '#059669', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 700, cursor: 'pointer', marginTop: '5px' }}>
-            {generating ? 'AI sedang meracik soal...' : '✨ Buat Soal Otomatis dengan AI'}
-          </button>
-        </div>
+              <div className="flex flex-col sm:flex-row sm:items-center gap-4 pt-2">
+                <label className="flex items-center gap-2.5 cursor-pointer text-sm font-medium text-tp-text">
+                  <input 
+                    type="checkbox" 
+                    checked={isPublic} 
+                    onChange={(e) => setIsPublic(e.target.checked)} 
+                    className="h-4 w-4 rounded border-gray-300 text-tp-green focus:ring-tp-green" 
+                  />
+                  Bagikan ke Marketplace Bank Soal (Jual ke Guru Lain)
+                </label>
 
-        {/* Daftar Butir Soal */}
-        <div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-            <h3 style={{ margin: 0, fontSize: '16px', color: '#334155' }}>Daftar Butir Soal ({questions.length})</h3>
-            <button type="button" onClick={addQuestion} style={{ padding: '6px 12px', background: '#0ea5e9', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 600, fontSize: '13px' }}>+ Tambah Soal</button>
-          </div>
-
-          {questions.map((q, idx) => (
-            <div key={idx} style={{ background: '#ffffff', padding: '20px', borderRadius: '8px', border: '1px solid #cbd5e1', marginBottom: '15px', position: 'relative' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
-                <span style={{ fontWeight: 700, color: '#475569' }}>Soal No. {idx + 1}</span>
-                {questions.length > 1 && (
-                  <button type="button" onClick={() => removeQuestion(idx)} style={{ background: '#fee2e2', color: '#dc2626', border: 'none', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: 600 }}>Hapus</button>
+                {isPublic && (
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor="price" className="text-xs font-semibold">Harga Token:</Label>
+                    <Input 
+                      id="price"
+                      type="number" 
+                      value={priceInTokens} 
+                      onChange={(e) => setPriceInTokens(Number(e.target.value))} 
+                      min={0} 
+                      className="w-24 h-9" 
+                    />
+                  </div>
                 )}
               </div>
+            </CardContent>
+          </Card>
 
-              <div style={{ display: 'flex', gap: '15px', marginBottom: '12px' }}>
-                <div style={{ flex: 2 }}>
-                  <label style={{ fontSize: '12px', fontWeight: 600, display: 'block', marginBottom: '4px' }}>Tipe Soal</label>
-                  <select value={q.question_type} onChange={(e) => handleQuestionChange(idx, 'question_type', e.target.value)} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px' }}>
-                    <option value="multiple_choice">Pilihan Ganda (PG)</option>
-                    <option value="complex_multiple_choice">Pilihan Ganda Kompleks</option>
-                    <option value="matching">Menjodohkan</option>
-                    <option value="true_false">Benar / Salah</option>
+          {/* Card Panel Generator AI */}
+          <Card className="rounded-2xl border-emerald-200 bg-emerald-50/50 shadow-sm">
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2 text-emerald-900">
+                <Sparkles size={18} className="text-emerald-600" /> Asisten Generator Soal (AI)
+              </CardTitle>
+              <CardDescription className="text-emerald-700/80">Buat soal otomatis secara instan berdasarkan topik materi.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-1.5">
+                <Label htmlFor="aiTopic" className="text-emerald-900">Topik / Materi Pembelajaran</Label>
+                <Input 
+                  id="aiTopic" 
+                  className="bg-white border-emerald-200 focus:border-emerald-600"
+                  placeholder="Contoh: Enzim pencernaan lambung dan fungsinya" 
+                  value={aiTopic} 
+                  onChange={(e) => setAiTopic(e.target.value)} 
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="grid gap-1.5">
+                  <Label className="text-emerald-900">Jumlah Soal</Label>
+                  <Input 
+                    type="number" 
+                    min={1} 
+                    max={10} 
+                    value={aiCount} 
+                    onChange={(e) => setAiCount(Number(e.target.value))} 
+                    className="bg-white border-emerald-200"
+                  />
+                </div>
+                <div className="grid gap-1.5">
+                  <Label className="text-emerald-900">Tipe Soal</Label>
+                  <select 
+                    value={aiType} 
+                    onChange={(e) => setAiType(e.target.value)} 
+                    className="w-full h-10 rounded-xl border border-emerald-200 bg-white px-3 text-sm text-tp-text outline-none focus:border-emerald-600"
+                  >
+                    <option value="multiple_choice">Pilihan Ganda</option>
+                    <option value="essay">Essay / Uraian</option>
                     <option value="short_answer">Isian Singkat</option>
-                    <option value="essay">Uraian / Essay</option>
                   </select>
                 </div>
-                <div style={{ flex: 1 }}>
-                  <label style={{ fontSize: '12px', fontWeight: 600, display: 'block', marginBottom: '4px' }}>Level Kognitif</label>
-                  <select value={q.cognitive_level} onChange={(e) => handleQuestionChange(idx, 'cognitive_level', e.target.value)} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px' }}>
-                    <option value="C1">C1 - Mengingat</option>
+                <div className="grid gap-1.5">
+                  <Label className="text-emerald-900">Level Kognitif</Label>
+                  <select 
+                    value={aiCognitive} 
+                    onChange={(e) => setAiCognitive(e.target.value)} 
+                    className="w-full h-10 rounded-xl border border-emerald-200 bg-white px-3 text-sm text-tp-text outline-none focus:border-emerald-600"
+                  >
                     <option value="C2">C2 - Memahami</option>
                     <option value="C3">C3 - Penerapan</option>
                     <option value="C4">C4 - Analisis (HOTS)</option>
-                    <option value="C5">C5 - Evaluasi (HOTS)</option>
-                    <option value="C6">C6 - Kreasi (HOTS)</option>
                   </select>
                 </div>
               </div>
 
-              <div style={{ marginBottom: '12px' }}>
-                <label style={{ fontSize: '12px', fontWeight: 600, display: 'block', marginBottom: '4px' }}>Pertanyaan / Wacana / Stimulus</label>
-                <textarea placeholder="Tuliskan teks soal di sini..." value={q.question_text} onChange={(e) => handleQuestionChange(idx, 'question_text', e.target.value)} rows={3} required style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px' }} />
-              </div>
+              <Button 
+                type="button" 
+                onClick={handleAIGenerate} 
+                disabled={generating} 
+                className="w-full bg-emerald-700 hover:bg-emerald-800 text-white font-semibold rounded-xl gap-2 mt-2"
+              >
+                <Sparkles size={16} />
+                {generating ? 'AI sedang meracik soal...' : 'Buat Soal Otomatis dengan AI'}
+              </Button>
+            </CardContent>
+          </Card>
 
-              <div style={{ display: 'flex', gap: '15px' }}>
-                <div style={{ flex: 1 }}>
-                  <label style={{ fontSize: '12px', fontWeight: 600, display: 'block', marginBottom: '4px' }}>Kunci Jawaban</label>
-                  <input type="text" placeholder="Contoh: A atau [A, C]" value={q.correct_answer} onChange={(e) => handleQuestionChange(idx, 'correct_answer', e.target.value)} required style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px' }} />
-                </div>
-                <div style={{ flex: 1 }}>
-                  <label style={{ fontSize: '12px', fontWeight: 600, display: 'block', marginBottom: '4px' }}>Pembahasan Soal</label>
-                  <input type="text" placeholder="Penjelasan mengapa jawaban tersebut benar..." value={q.explanation} onChange={(e) => handleQuestionChange(idx, 'explanation', e.target.value)} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px' }} />
-                </div>
-              </div>
+          {/* Daftar Butir Soal */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-bold text-tp-text">Daftar Butir Soal ({questions.length})</h3>
+              <Button 
+                type="button" 
+                onClick={addQuestion} 
+                size="sm"
+                className="bg-sky-600 hover:bg-sky-700 text-white rounded-xl gap-1.5 text-xs"
+              >
+                <Plus size={14} /> Tambah Soal
+              </Button>
             </div>
-          ))}
-        </div>
 
-        <button type="submit" disabled={loading} style={{ padding: '14px', background: '#059669', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, fontSize: '15px', cursor: 'pointer' }}>
-          {loading ? 'Menyimpan...' : 'Simpan Bank Soal Permanen'}
-        </button>
+            {questions.map((q, idx) => (
+              <Card key={idx} className="rounded-2xl border-tp-border shadow-sm">
+                <CardHeader className="flex flex-row items-center justify-between pb-3">
+                  <CardTitle className="text-sm font-bold text-tp-muted">Soal No. {idx + 1}</CardTitle>
+                  {questions.length > 1 && (
+                    <Button 
+                      type="button" 
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => removeQuestion(idx)} 
+                      className="h-8 px-2.5 text-xs rounded-xl gap-1"
+                    >
+                      <Trash2 size={12} /> Hapus
+                    </Button>
+                  )}
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="grid gap-1.5">
+                      <Label className="text-xs">Tipe Soal</Label>
+                      <select 
+                        value={q.question_type} 
+                        onChange={(e) => handleQuestionChange(idx, 'question_type', e.target.value)} 
+                        className="w-full h-10 rounded-xl border border-gray-300 bg-white px-3 text-sm text-tp-text outline-none focus:border-tp-green"
+                      >
+                        <option value="multiple_choice">Pilihan Ganda (PG)</option>
+                        <option value="complex_multiple_choice">Pilihan Ganda Kompleks</option>
+                        <option value="matching">Menjodohkan</option>
+                        <option value="true_false">Benar / Salah</option>
+                        <option value="short_answer">Isian Singkat</option>
+                        <option value="essay">Uraian / Essay</option>
+                      </select>
+                    </div>
+                    <div className="grid gap-1.5">
+                      <Label className="text-xs">Level Kognitif</Label>
+                      <select 
+                        value={q.cognitive_level} 
+                        onChange={(e) => handleQuestionChange(idx, 'cognitive_level', e.target.value)} 
+                        className="w-full h-10 rounded-xl border border-gray-300 bg-white px-3 text-sm text-tp-text outline-none focus:border-tp-green"
+                      >
+                        <option value="C1">C1 - Mengingat</option>
+                        <option value="C2">C2 - Memahami</option>
+                        <option value="C3">C3 - Penerapan</option>
+                        <option value="C4">C4 - Analisis (HOTS)</option>
+                        <option value="C5">C5 - Evaluasi (HOTS)</option>
+                        <option value="C6">C6 - Kreasi (HOTS)</option>
+                      </select>
+                    </div>
+                  </div>
 
-      </form>
+                  <div className="grid gap-1.5">
+                    <Label className="text-xs">Pertanyaan / Wacana / Stimulus</Label>
+                    <textarea 
+                      className="w-full rounded-xl border border-gray-300 bg-white px-3.5 py-3 text-sm text-tp-text outline-none transition focus:border-tp-green"
+                      placeholder="Tuliskan teks soal di sini..." 
+                      value={q.question_text} 
+                      onChange={(e) => handleQuestionChange(idx, 'question_text', e.target.value)} 
+                      rows={3} 
+                      required 
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="grid gap-1.5">
+                      <Label className="text-xs">Kunci Jawaban</Label>
+                      <Input 
+                        placeholder="Contoh: A atau [A, C]" 
+                        value={q.correct_answer} 
+                        onChange={(e) => handleQuestionChange(idx, 'correct_answer', e.target.value)} 
+                        required 
+                      />
+                    </div>
+                    <div className="grid gap-1.5">
+                      <Label className="text-xs">Pembahasan Soal</Label>
+                      <Input 
+                        placeholder="Penjelasan mengapa jawaban tersebut benar..." 
+                        value={q.explanation} 
+                        onChange={(e) => handleQuestionChange(idx, 'explanation', e.target.value)} 
+                      />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+
+          <Button 
+            type="submit" 
+            disabled={loading} 
+            className="w-full bg-tp-green hover:bg-tp-green-hover text-white font-semibold py-3 rounded-xl gap-2 text-base"
+          >
+            <Save size={18} />
+            {loading ? 'Menyimpan...' : 'Simpan Bank Soal Permanen'}
+          </Button>
+
+        </form>
+      </div>
     </div>
   )
 }

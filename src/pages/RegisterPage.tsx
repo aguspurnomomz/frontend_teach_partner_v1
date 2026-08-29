@@ -2,10 +2,15 @@ import React, { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient'
 import teachpartnerIcon from '../assets/teachpartner.png'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Eye, EyeOff } from 'lucide-react'
 
 export default function RegisterPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
 
@@ -72,13 +77,13 @@ export default function RegisterPage() {
           <p className="mb-7 text-sm text-tp-muted">Daftar menggunakan email Anda.</p>
 
           <form className="flex flex-col gap-4" onSubmit={handleRegister}>
-            <div>
-              <label className="mb-1.5 block text-[13px] font-semibold text-gray-700" htmlFor="register-email">
+            <div className="grid gap-1.5">
+              <Label htmlFor="register-email" className="text-[13px] font-semibold text-gray-700">
                 Email
-              </label>
-              <input
+              </Label>
+              <Input
                 id="register-email"
-                className="w-full rounded-xl border border-gray-300 bg-white px-3.5 py-3 text-sm text-tp-text outline-none transition focus:border-tp-green focus:shadow-[0_0_0_3px_rgba(15,76,54,0.12)]"
+                className="h-11 rounded-xl bg-white text-sm text-tp-text"
                 type="email"
                 placeholder="nama@sekolah.id"
                 value={email}
@@ -88,30 +93,40 @@ export default function RegisterPage() {
               />
             </div>
 
-            <div>
-              <label className="mb-1.5 block text-[13px] font-semibold text-gray-700" htmlFor="register-password">
+            <div className="grid gap-1.5">
+              <Label htmlFor="register-password" className="text-[13px] font-semibold text-gray-700">
                 Password
-              </label>
-              <input
-                id="register-password"
-                className="w-full rounded-xl border border-gray-300 bg-white px-3.5 py-3 text-sm text-tp-text outline-none transition focus:border-tp-green focus:shadow-[0_0_0_3px_rgba(15,76,54,0.12)]"
-                type="password"
-                placeholder="Minimal 6 karakter"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                autoComplete="new-password"
-                minLength={6}
-                required
-              />
+              </Label>
+              <div className="relative flex items-center">
+                <Input
+                  id="register-password"
+                  className="h-11 rounded-xl bg-white pr-10 text-sm text-tp-text"
+                  type={showPassword ? 'text' : 'password'}
+                  placeholder="Minimal 6 karakter"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  autoComplete="new-password"
+                  minLength={6}
+                  required
+                />
+                <button
+                  type="button"
+                  className="absolute right-3 text-gray-400 hover:text-gray-600 focus:outline-none"
+                  onClick={() => setShowPassword(!showPassword)}
+                  tabIndex={-1}
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
             </div>
 
-            <button
+            <Button
               type="submit"
-              className="mt-1 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-tp-green px-[18px] py-[11px] text-sm font-semibold text-white transition hover:bg-tp-green-hover active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-65"
+              className="mt-1 h-11 w-full rounded-xl bg-tp-green text-sm font-semibold text-white hover:bg-tp-green-hover"
               disabled={loading}
             >
               {loading ? 'Mendaftarkan...' : 'Daftar Sekarang'}
-            </button>
+            </Button>
           </form>
 
           <p className="mt-6 text-center text-[13px] text-tp-muted">

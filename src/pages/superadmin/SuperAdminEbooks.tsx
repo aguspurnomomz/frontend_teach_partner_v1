@@ -1,12 +1,16 @@
 import React, { useEffect, useState } from 'react'
 import axios from 'axios'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Plus, Trash2, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react'
 
 interface Ebook {
   id: string
   judul: string
   jenjang: string
   mata_pelajaran: string
-  kategori: string // <-- Ditambahkan
+  kategori: string
   cover_url: string
   file_url: string
   created_at: string
@@ -17,6 +21,10 @@ export default function SuperAdminEbooks() {
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
 
+  // State untuk Pagination (10 item per halaman)
+  const [currentPage, setCurrentPage] = useState(1)
+  const itemsPerPage = 10
+
   // State Form Tambah E-book
   const [judul, setJudul] = useState('')
   const [jenjang, setJenjang] = useState('SMA/MA')
@@ -26,7 +34,7 @@ export default function SuperAdminEbooks() {
   const [fileUrl, setFileUrl] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
-  const API_URL = import.meta.env.VITE_API_URL
+  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080'
   const adminToken = localStorage.getItem('superadmin_token')
 
   const fetchEbooks = async () => {
@@ -67,7 +75,6 @@ export default function SuperAdminEbooks() {
       )
       alert('E-book berhasil ditambahkan!')
       setShowModal(false)
-      // Reset form
       setJudul('')
       setMataPelajaran('')
       setKategori('Kurikulum Merdeka')
@@ -95,66 +102,93 @@ export default function SuperAdminEbooks() {
     }
   }
 
+  // Kalkulasi data untuk pagination (10 data per halaman)
+  const totalPages = Math.ceil(ebooks.length / itemsPerPage) || 1
+  const startIndex = (currentPage - 1) * itemsPerPage
+  const currentEbooks = ebooks.slice(startIndex, startIndex + itemsPerPage)
+
+  const handlePrevPage = () => {
+    setCurrentPage((prev) => Math.max(prev - 1, 1))
+  }
+
+  const handleNextPage = () => {
+    setCurrentPage((prev) => Math.min(prev + 1, totalPages))
+  }
+
   return (
-    <div className="p-8">
-      <div className="flex items-center justify-between mb-6">
+    <div className="space-y-6">
+      <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
         <div>
-          <h1 className="text-2xl font-bold text-tp-text">Kelola E-Book Referensi</h1>
+          <h1 className="mb-1 text-2xl font-bold tracking-tight text-tp-text sm:text-[28px]">Kelola E-Book</h1>
           <p className="text-sm text-tp-muted">Tambah dan kelola daftar buku pegangan kurikulum untuk guru.</p>
         </div>
-        <button
-          onClick={() => setShowModal(true)}
-          className="rounded-xl bg-tp-green px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-tp-green-hover"
-        >
-          + Tambah E-Book
-        </button>
+        <div className="flex gap-2">
+          <Button
+            onClick={() => setShowModal(true)}
+            className="rounded-xl bg-tp-green hover:bg-tp-green-hover text-white text-xs gap-1.5"
+          >
+            <Plus size={16} /> Tambah E-Book
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={fetchEbooks}
+            className="rounded-xl border-tp-border bg-white gap-2 text-xs"
+          >
+            <RefreshCw size={14} /> Muat Ulang
+          </Button>
+        </div>
       </div>
 
       {/* Tabel E-Books */}
-      <div className="rounded-2xl border border-tp-border bg-white shadow-sm overflow-hidden">
+      <div className="overflow-hidden rounded-2xl border border-tp-border bg-white shadow-sm">
         {loading ? (
-          <div className="p-8 text-center text-sm text-tp-muted">Memuat data e-book...</div>
+          <div className="p-12 text-center text-sm text-tp-muted">Memuat data e-book...</div>
         ) : ebooks.length === 0 ? (
-          <div className="p-8 text-center text-sm text-tp-muted">Belum ada data e-book yang tersimpan.</div>
+          <div className="p-12 text-center text-sm text-tp-muted">Belum ada data e-book yang tersimpan.</div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse text-sm">
-              <thead>
-                <tr className="border-b border-tp-border bg-gray-50/70 text-xs font-semibold text-tp-muted uppercase">
-                  <th className="p-4">Judul Buku</th>
-                  <th className="p-4">Jenjang</th>
-                  <th className="p-4">Mata Pelajaran</th>
-                  <th className="p-4">Kategori</th>
-                  <th className="p-4">Aksi</th>
+            <table className="w-full text-left text-sm">
+              <thead className="border-b border-tp-border bg-gray-50 text-xs font-semibold uppercase tracking-wider text-tp-muted">
+                <tr>
+                  <th className="px-6 py-4">Judul Buku</th>
+                  <th className="px-6 py-4">Jenjang</th>
+                  <th className="px-6 py-4">Mata Pelajaran</th>
+                  <th className="px-6 py-4">Kategori</th>
+                  <th className="px-6 py-4 text-right">Aksi</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-tp-border">
-                {ebooks.map((b) => (
-                  <tr key={b.id} className="hover:bg-gray-50/50 transition">
-                    <td className="p-4 font-semibold text-tp-text">{b.judul}</td>
-                    <td className="p-4 text-tp-muted">{b.jenjang}</td>
-                    <td className="p-4 text-tp-muted">{b.mata_pelajaran}</td>
-                    <td className="p-4">
+                {currentEbooks.map((b) => (
+                  <tr key={b.id} className="transition hover:bg-gray-50/50">
+                    <td className="px-6 py-4 font-semibold text-tp-text">{b.judul}</td>
+                    <td className="px-6 py-4 text-tp-muted">{b.jenjang}</td>
+                    <td className="px-6 py-4 text-tp-muted">{b.mata_pelajaran}</td>
+                    <td className="px-6 py-4">
                       <span className="inline-flex rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-tp-green border border-emerald-200">
                         {b.kategori || 'Kurikulum Merdeka'}
                       </span>
                     </td>
-                    <td className="p-4">
-                      <div className="flex items-center gap-2">
-                        <a
-                          href={b.file_url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-200 transition"
+                    <td className="px-6 py-4 text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          asChild
+                          className="h-8 rounded-lg text-xs"
                         >
-                          Lihat PDF
-                        </a>
-                        <button
+                          <a href={b.file_url} target="_blank" rel="noreferrer">
+                            Lihat PDF
+                          </a>
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="destructive"
                           onClick={() => handleDeleteEbook(b.id, b.judul)}
-                          className="rounded-lg bg-red-50 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-100 transition"
+                          className="h-8 rounded-lg text-xs gap-1"
                         >
-                          Hapus
-                        </button>
+                          <Trash2 size={14} /> Hapus
+                        </Button>
                       </div>
                     </td>
                   </tr>
@@ -163,31 +197,66 @@ export default function SuperAdminEbooks() {
             </table>
           </div>
         )}
+
+        {/* Kontrol Navigasi Pagination (10 data per halaman) */}
+        {!loading && ebooks.length > 0 && (
+          <div className="flex items-center justify-between border-t border-tp-border bg-gray-50/50 px-6 py-3.5 text-xs text-tp-muted">
+            <div>
+              Menampilkan <span className="font-semibold text-tp-text">{startIndex + 1}</span> -{' '}
+              <span className="font-semibold text-tp-text">{Math.min(startIndex + itemsPerPage, ebooks.length)}</span> dari{' '}
+              <span className="font-semibold text-tp-text">{ebooks.length}</span> e-book
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handlePrevPage}
+                disabled={currentPage === 1}
+                className="h-8 rounded-lg gap-1 bg-white text-xs"
+              >
+                <ChevronLeft size={14} /> Sebelumnya
+              </Button>
+              <span className="font-medium text-tp-text px-1">
+                {currentPage} / {totalPages}
+              </span>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleNextPage}
+                disabled={currentPage === totalPages}
+                className="h-8 rounded-lg gap-1 bg-white text-xs"
+              >
+                Selanjutnya <ChevronRight size={14} />
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Modal Tambah E-Book */}
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-xl">
-            <h2 className="mb-4 text-xl font-bold text-tp-text">Tambah E-Book Baru</h2>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl space-y-4">
+            <h2 className="text-xl font-bold text-tp-text">Tambah E-Book Baru</h2>
             <form onSubmit={handleCreateEbook} className="flex flex-col gap-4">
-              <div>
-                <label className="mb-1 block text-xs font-semibold text-gray-700">Judul Buku</label>
-                <input
+              <div className="grid gap-1.5">
+                <Label className="text-xs">Judul Buku</Label>
+                <Input
                   type="text"
                   required
                   placeholder="Contoh: Matematika Kelas X SMA"
-                  className="w-full rounded-xl border border-gray-300 px-3.5 py-2.5 text-sm outline-none focus:border-tp-green"
                   value={judul}
                   onChange={(e) => setJudul(e.target.value)}
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="mb-1 block text-xs font-semibold text-gray-700">Jenjang</label>
+                <div className="grid gap-1.5">
+                  <Label className="text-xs">Jenjang</Label>
                   <select
-                    className="w-full rounded-xl border border-gray-300 px-3.5 py-2.5 text-sm outline-none focus:border-tp-green bg-white"
+                    className="w-full h-10 rounded-xl border border-gray-300 bg-white px-3 text-sm text-tp-text outline-none focus:border-tp-green"
                     value={jenjang}
                     onChange={(e) => setJenjang(e.target.value)}
                   >
@@ -196,23 +265,22 @@ export default function SuperAdminEbooks() {
                     <option value="SMA/MA">SMA/MA</option>
                   </select>
                 </div>
-                <div>
-                  <label className="mb-1 block text-xs font-semibold text-gray-700">Mata Pelajaran</label>
-                  <input
+                <div className="grid gap-1.5">
+                  <Label className="text-xs">Mata Pelajaran</Label>
+                  <Input
                     type="text"
                     required
                     placeholder="Contoh: Matematika"
-                    className="w-full rounded-xl border border-gray-300 px-3.5 py-2.5 text-sm outline-none focus:border-tp-green"
                     value={mataPelajaran}
                     onChange={(e) => setMataPelajaran(e.target.value)}
                   />
                 </div>
               </div>
 
-              <div>
-                <label className="mb-1 block text-xs font-semibold text-gray-700">Kategori Buku</label>
+              <div className="grid gap-1.5">
+                <Label className="text-xs">Kategori Buku</Label>
                 <select
-                  className="w-full rounded-xl border border-gray-300 px-3.5 py-2.5 text-sm outline-none focus:border-tp-green bg-white"
+                  className="w-full h-10 rounded-xl border border-gray-300 bg-white px-3 text-sm text-tp-text outline-none focus:border-tp-green"
                   value={kategori}
                   onChange={(e) => setKategori(e.target.value)}
                 >
@@ -222,44 +290,43 @@ export default function SuperAdminEbooks() {
                 </select>
               </div>
 
-              <div>
-                <label className="mb-1 block text-xs font-semibold text-gray-700">URL File PDF (Link Resmi / Cloudflare R2)</label>
-                <input
+              <div className="grid gap-1.5">
+                <Label className="text-xs">URL File PDF (Link Resmi / Cloudflare R2)</Label>
+                <Input
                   type="url"
                   required
                   placeholder="https://..."
-                  className="w-full rounded-xl border border-gray-300 px-3.5 py-2.5 text-sm outline-none focus:border-tp-green"
                   value={fileUrl}
                   onChange={(e) => setFileUrl(e.target.value)}
                 />
               </div>
 
-              <div>
-                <label className="mb-1 block text-xs font-semibold text-gray-700">URL Cover Buku (Opsional)</label>
-                <input
+              <div className="grid gap-1.5">
+                <Label className="text-xs">URL Cover Buku (Opsional)</Label>
+                <Input
                   type="url"
                   placeholder="https://..."
-                  className="w-full rounded-xl border border-gray-300 px-3.5 py-2.5 text-sm outline-none focus:border-tp-green"
                   value={coverUrl}
                   onChange={(e) => setCoverUrl(e.target.value)}
                 />
               </div>
 
               <div className="flex justify-end gap-3 mt-4">
-                <button
+                <Button
                   type="button"
+                  variant="outline"
                   onClick={() => setShowModal(false)}
-                  className="rounded-xl border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+                  className="rounded-xl border-tp-border bg-white text-xs font-semibold text-tp-text hover:bg-gray-50 h-10"
                 >
                   Batal
-                </button>
-                <button
+                </Button>
+                <Button
                   type="submit"
                   disabled={submitting}
-                  className="rounded-xl bg-tp-green px-4 py-2 text-sm font-semibold text-white hover:bg-tp-green-hover disabled:opacity-50"
+                  className="rounded-xl bg-tp-green hover:bg-tp-green-hover text-white text-xs font-semibold h-10"
                 >
                   {submitting ? 'Menyimpan...' : 'Simpan E-Book'}
-                </button>
+                </Button>
               </div>
             </form>
           </div>
