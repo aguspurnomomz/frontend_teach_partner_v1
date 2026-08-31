@@ -2,14 +2,18 @@ import { useEffect, useState } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { supabase } from './lib/supabaseClient'
 import axios from 'axios'
+
 import LoginPage from './pages/LoginPage'
+import RegisterPage from './pages/RegisterPage'
+import TermsPage from './pages/TermsPage'
+import PrivacyPage from './pages/PrivacyPage'
+import DisclaimerPage from './pages/DisclaimerPage'
+
 import MainLayout from './components/MainLayout'
 import DashboardOverview from './pages/DashboardOverview'
 import QuestionBankPage from './pages/QuestionBankPage'
 import ProfilePage from './pages/ProfilePage'
-import RegisterPage from './pages/RegisterPage'
 import EbooksPage from './pages/EbooksPage' 
-
 import BillingPage from './pages/BillingPage'
 
 import SuperAdminLoginPage from './pages/superadmin/SuperAdminLoginPage'
@@ -130,6 +134,9 @@ export default function App() {
 
         {/* --- Route Register (Publik) --- */}
         <Route path="/register" element={<RegisterPage />} />
+        <Route path="/terms" element={<TermsPage />} />
+        <Route path="/privacy" element={<PrivacyPage />} />
+        <Route path="/disclaimer" element={<DisclaimerPage />} />
 
         {/* --- Route User guru --- */}
         <Route 

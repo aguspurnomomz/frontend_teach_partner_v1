@@ -7,11 +7,13 @@ import { Input } from '../components/ui/input'
 import { Label } from '../components/ui/label'
 import { Eye, EyeOff } from 'lucide-react'
 
+
 export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false) 
   const [loading, setLoading] = useState(false)
+  const [agreed, setAgreed] = useState(false) 
 
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -122,14 +124,19 @@ export default function LoginPage() {
             </Button>
           </form>
 
-          <div className="my-[22px] flex items-center gap-3 text-[13px] text-tp-faint before:h-px before:flex-1 before:bg-tp-border after:h-px after:flex-1 after:bg-tp-border">
+         
+
+          <div className="my-[18px] flex items-center gap-3 text-[13px] text-tp-faint before:h-px before:flex-1 before:bg-tp-border after:h-px after:flex-1 after:bg-tp-border">
             Atau lanjutkan dengan
           </div>
 
           <Button
             type="button"
             variant="outline"
-            className="w-full gap-2.5 rounded-xl border-tp-border text-tp-text hover:bg-gray-50 active:scale-[0.98]"
+            disabled={!agreed} // Disabled jika belum dicentang
+            className={`w-full gap-2.5 rounded-xl border-tp-border text-tp-text hover:bg-gray-50 active:scale-[0.98] ${
+              !agreed ? 'opacity-50 cursor-not-allowed hover:bg-white' : ''
+            }`}
             onClick={handleGoogleLogin}
           >
             <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden>
@@ -140,6 +147,46 @@ export default function LoginPage() {
             </svg>
             Masuk Menggunakan Akun Google
           </Button>
+          {/* Checklist Syarat & Ketentuan, Kebijakan Privasi, dan Disclaimer */}
+          <div className="mt-4 flex items-start gap-2.5">
+            <input
+              type="checkbox"
+              id="terms-checkbox"
+              checked={agreed}
+              onChange={(e) => setAgreed(e.target.checked)}
+              className="mt-1 h-4 w-4 rounded border-tp-border text-tp-green focus:ring-tp-green cursor-pointer"
+            />
+            <label htmlFor="terms-checkbox" className="text-xs text-tp-muted leading-relaxed select-none">
+              Saya telah membaca dan menyetujui{' '}
+              <Link 
+                to="/terms" 
+                rel="noopener noreferrer" 
+                className="font-medium text-tp-green hover:underline cursor-pointer"
+                onClick={(e) => e.stopPropagation()} 
+              >
+                Syarat & Ketentuan
+              </Link>
+              ,{' '}
+              <Link 
+                to="/privacy" 
+                rel="noopener noreferrer" 
+                className="font-medium text-tp-green hover:underline cursor-pointer"
+                onClick={(e) => e.stopPropagation()}
+              >
+                Kebijakan Privasi
+              </Link>
+              , dan{' '}
+              <Link 
+                to="/disclaimer" 
+                rel="noopener noreferrer" 
+                className="font-medium text-tp-green hover:underline cursor-pointer"
+                onClick={(e) => e.stopPropagation()}
+              >
+                Disclaimer
+              </Link>{' '}
+              TeachPartner.
+            </label>
+          </div>
 
           <p className="mt-6 text-center text-[13px] text-tp-muted">
             Belum punya akun?{' '}

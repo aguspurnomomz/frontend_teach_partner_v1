@@ -12,6 +12,7 @@ export default function RegisterPage() {
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [agreed, setAgreed] = useState(false) 
   const navigate = useNavigate()
 
   const handleRegister = async (e: React.FormEvent) => {
@@ -122,12 +123,56 @@ export default function RegisterPage() {
 
             <Button
               type="submit"
+              disabled={!agreed || loading}
               className="mt-1 h-11 w-full rounded-xl bg-tp-green text-sm font-semibold text-white hover:bg-tp-green-hover"
-              disabled={loading}
             >
               {loading ? 'Mendaftarkan...' : 'Daftar Sekarang'}
             </Button>
           </form>
+
+          {/* Checklist Syarat & Ketentuan, Kebijakan Privasi, dan Disclaimer */}
+          <div className="mt-4 flex items-start gap-2.5">
+            <input
+              type="checkbox"
+              id="terms-checkbox"
+              checked={agreed}
+              onChange={(e) => setAgreed(e.target.checked)}
+              className="mt-1 h-4 w-4 rounded border-tp-border text-tp-green focus:ring-tp-green cursor-pointer"
+            />
+            <label htmlFor="terms-checkbox" className="text-xs text-tp-muted leading-relaxed select-none">
+              Saya telah membaca dan menyetujui{' '}
+              <Link 
+                to="/terms" 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="font-medium text-tp-green hover:underline cursor-pointer"
+                onClick={(e) => e.stopPropagation()} 
+              >
+                Syarat & Ketentuan
+              </Link>
+              ,{' '}
+              <Link 
+                to="/privacy" 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="font-medium text-tp-green hover:underline cursor-pointer"
+                onClick={(e) => e.stopPropagation()}
+              >
+                Kebijakan Privasi
+              </Link>
+              , dan{' '}
+              <Link 
+                to="/disclaimer" 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="font-medium text-tp-green hover:underline cursor-pointer"
+                onClick={(e) => e.stopPropagation()}
+              >
+                Disclaimer
+              </Link>{' '}
+              TeachPartner.
+            </label>
+          </div>
 
           <p className="mt-6 text-center text-[13px] text-tp-muted">
             Sudah punya akun?{' '}
