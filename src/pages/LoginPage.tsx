@@ -145,7 +145,7 @@ export default function LoginPage() {
               <path fill="#FBBC05" d="M5.27 14.24c-.25-.72-.38-1.49-.38-2.24s.13-1.52.38-2.24V6.61H1.19C.43 8.15 0 9.89 0 12s.43 3.85 1.19 5.39l4.08-3.15z" />
               <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.26 0 3.17 2.69 1.19 6.61l4.08 3.15c.95-2.85 3.6-4.96 6.73-4.96z" />
             </svg>
-            Masuk Menggunakan Akun Google
+            Daftar dan masuk Menggunakan Akun Google
           </Button>
           {/* Checklist Syarat & Ketentuan, Kebijakan Privasi, dan Disclaimer */}
           <div className="mt-4 flex items-start gap-2.5">
