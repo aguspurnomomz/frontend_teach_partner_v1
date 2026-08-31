@@ -2,7 +2,6 @@ import { useState, useEffect} from 'react'
 import { Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient'
 import teachpartnerIcon from '../assets/teachpartner.png'
-// import teachpartnerLogo from '../assets/teacpartnerico.png'
 
 function IconHome() {
   return (
