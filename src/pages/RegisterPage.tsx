@@ -55,7 +55,7 @@ export default function RegisterPage() {
               Mulai kelola administrasi mengajar Anda
             </h2>
             <p className="max-w-xs text-sm leading-relaxed text-white/80">
-              Daftarkan akun Anda sekarang dan nikmati kemudahan pengelolaan perangkat ajar dalam satu platform terintegrasi.
+              Daftarkan akun Anda sekarang dan mulai gunakan fitur unggulan kami.
             </p>
           </div>
 
