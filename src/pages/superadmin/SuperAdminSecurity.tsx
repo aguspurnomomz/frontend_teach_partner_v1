@@ -13,7 +13,7 @@ interface LogItem {
   action: string
   ip_address: string
   user_agent: string
-  location?: string // Tambahan properti lokasi
+  location?: string
   details: string
   created_at: string
 }
@@ -31,6 +31,13 @@ export default function SuperAdminSecurity({ logs, onRefreshLogs }: SuperAdminSe
   const [showNewPass, setShowNewPass] = useState(false)
   const [showConfirmPass, setShowConfirmPass] = useState(false)
   const [changingPass, setChangingPass] = useState(false)
+
+  // State untuk alert di dalam card
+  const [errorMsg, setErrorMsg] = useState('')
+  const [successMsg, setSuccessMsg] = useState('')
+
+  // State untuk modal konfirmasi custom
+  const [showConfirmModal, setShowConfirmModal] = useState(false)
 
   // State untuk Pagination (5 item per halaman)
   const [currentPage, setCurrentPage] = useState(1)
@@ -55,22 +62,29 @@ export default function SuperAdminSecurity({ logs, onRefreshLogs }: SuperAdminSe
     }
   }
 
-  const handleChangePassword = async (e: React.FormEvent) => {
+  const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault()
+    setErrorMsg('')
+    setSuccessMsg('')
 
     if (newPassword !== confirmPassword) {
-      alert('Konfirmasi kata sandi baru tidak cocok!')
+      setErrorMsg('Konfirmasi kata sandi baru tidak cocok!')
       return
     }
 
-    const confirmSave = window.confirm('Apakah Anda yakin ingin menyimpan kata sandi baru ini?')
-    if (!confirmSave) return
+    setShowConfirmModal(true)
+  }
 
+  const executeChangePassword = async () => {
     setChangingPass(true)
+    setErrorMsg('')
+    setSuccessMsg('')
+
     try {
       const token = localStorage.getItem('superadmin_token')
       const cachedLocation = localStorage.getItem('superadmin_location')
       const locationData = cachedLocation ? JSON.parse(cachedLocation) : null
+      
       await axios.post(
         `${API_URL}/api/superadmin/change-password`,
         {
@@ -80,13 +94,16 @@ export default function SuperAdminSecurity({ logs, onRefreshLogs }: SuperAdminSe
         },
         { headers: { Authorization: `Bearer ${token}` } }
       )
-      alert('Kata sandi berhasil diubah!')
+      
+      setShowConfirmModal(false)
+      setSuccessMsg('Kata sandi berhasil diubah!')
       setOldPassword('')
       setNewPassword('')
       setConfirmPassword('')
       onRefreshLogs()
     } catch (err: any) {
-      alert('Gagal mengubah kata sandi: ' + (err.response?.data?.error || err.message))
+      setShowConfirmModal(false)
+      setErrorMsg(err.response?.data?.error || err.message || 'Gagal mengubah kata sandi')
     } finally {
       setChangingPass(false)
     }
@@ -106,7 +123,7 @@ export default function SuperAdminSecurity({ logs, onRefreshLogs }: SuperAdminSe
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-6 relative">
       <div>
         <h1 className="mb-1 text-2xl font-bold tracking-tight text-tp-text sm:text-[28px]">Keamanan & Log Aktivitas</h1>
         <p className="text-sm text-tp-muted">Perbarui kata sandi, uji monitoring error, dan pantau riwayat jejak keamanan administrator sistem.</p>
@@ -121,7 +138,19 @@ export default function SuperAdminSecurity({ logs, onRefreshLogs }: SuperAdminSe
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleChangePassword} className="flex flex-col gap-4">
+            {errorMsg && (
+              <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3 text-xs font-medium text-red-600">
+                {errorMsg}
+              </div>
+            )}
+
+            {successMsg && (
+              <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs font-medium text-emerald-700">
+                {successMsg}
+              </div>
+            )}
+
+            <form onSubmit={handleFormSubmit} className="flex flex-col gap-4">
               <div className="grid gap-1.5">
                 <Label className="text-xs">Kata Sandi Lama</Label>
                 <div className="relative flex items-center">
@@ -195,7 +224,7 @@ export default function SuperAdminSecurity({ logs, onRefreshLogs }: SuperAdminSe
                   disabled={changingPass}
                   className="rounded-xl bg-tp-green hover:bg-tp-green-hover text-white text-sm font-semibold"
                 >
-                  {changingPass ? 'Menyimpan...' : 'Perbarui Kata Sandi'}
+                  Perbarui Kata Sandi
                 </Button>
               </div>
             </form>
@@ -353,6 +382,69 @@ export default function SuperAdminSecurity({ logs, onRefreshLogs }: SuperAdminSe
           )}
         </div>
       </div>
+
+      {/* CUSTOM CONFIRMATION MODAL (Ganti Password) */}
+      {showConfirmModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+          <div className="relative w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+            {/* Icon Peringatan */}
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-rose-50">
+              <svg 
+                className="h-8 w-8 text-rose-600" 
+                fill="none" 
+                stroke="currentColor" 
+                viewBox="0 0 24 24"
+              >
+                <path 
+                  strokeLinecap="round" 
+                  strokeLinejoin="round" 
+                  strokeWidth="2" 
+                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" 
+                />
+              </svg>
+            </div>
+
+            <h3 className="mb-2 text-center text-xl font-bold text-gray-950">
+              Perhatian!
+            </h3>
+            <p className="mb-6 text-center text-sm text-gray-600">
+              Apakah Anda yakin ingin memperbarui kata sandi akun Superadmin ini?
+              <br />
+              <span className="text-xs text-gray-400">
+                Pastikan Anda mengingat kata sandi baru yang dimasukkan.
+              </span>
+            </p>
+
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setShowConfirmModal(false)}
+                disabled={changingPass}
+                className="flex-1 rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={executeChangePassword}
+                disabled={changingPass}
+                className="flex-1 rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {changingPass ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <svg className="h-4 w-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    Menyimpan...
+                  </span>
+                ) : (
+                  'Ya, Perbarui'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
