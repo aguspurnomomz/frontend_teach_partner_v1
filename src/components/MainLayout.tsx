@@ -30,14 +30,14 @@ function IconBook() {
   )
 }
 
-function IconSearch() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <circle cx="11" cy="11" r="7" />
-      <path d="m20 20-3-3" />
-    </svg>
-  )
-}
+// function IconSearch() {
+//   return (
+//     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+//       <circle cx="11" cy="11" r="7" />
+//       <path d="m20 20-3-3" />
+//     </svg>
+//   )
+// }
 
 function IconBell() {
   return (
@@ -89,8 +89,8 @@ export default function MainLayout({ session }: { session: any }) {
   const navigate = useNavigate()
   const location = useLocation()
   const [sidebarOpen, setSidebarOpen] = useState(false)
-    const [showLogoutModal, setShowLogoutModal] = useState(false) // State untuk modal
-  const [isLoggingOut, setIsLoggingOut] = useState(false) // State loading
+  const [showLogoutModal, setShowLogoutModal] = useState(false) 
+  const [isLoggingOut, setIsLoggingOut] = useState(false) 
 
   const email = session?.user?.email ?? ''
   const displayName = email.split('@')[0] || 'Guru'
@@ -222,7 +222,7 @@ export default function MainLayout({ session }: { session: any }) {
         </div>
       </aside>
 
-           {/* 👇 MODAL KONFIRMASI LOGOUT */}
+      {/* MODAL KONFIRMASI LOGOUT */}
       {showLogoutModal && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
           {/* Overlay modal */}
@@ -303,7 +303,7 @@ export default function MainLayout({ session }: { session: any }) {
             <IconMenu />
           </button>
 
-          <div className="flex max-w-none flex-1 items-center gap-2.5 rounded-full border border-tp-border bg-white px-4 py-2.5 text-tp-faint lg:max-w-[420px]">
+          {/* <div className="flex max-w-none flex-1 items-center gap-2.5 rounded-full border border-tp-border bg-white px-4 py-2.5 text-tp-faint lg:max-w-[420px]">
             <IconSearch />
             <input
               type="search"
@@ -314,7 +314,7 @@ export default function MainLayout({ session }: { session: any }) {
             <kbd className="hidden rounded-md border border-tp-border bg-gray-100 px-1.5 py-0.5 text-[11px] font-semibold text-tp-faint sm:inline">
               ⌘ F
             </kbd>
-          </div>
+          </div> */}
 
           <div className="ml-auto flex items-center gap-2.5">
             <button

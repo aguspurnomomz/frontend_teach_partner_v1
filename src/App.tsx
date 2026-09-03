@@ -20,7 +20,6 @@ import SuperAdminLoginPage from './pages/superadmin/SuperAdminLoginPage'
 import SuperAdminDashboard from './pages/superadmin/SuperAdminDashboard'
 import SuperAdminEbooks from './pages/superadmin/SuperAdminEbooks'
 
-// Dedupe /api/profile antar Strict Mode remount (dev) untuk token yang sama
 let lastProfileTokenFetched: string | null = null
 
 export default function App() {
@@ -50,7 +49,6 @@ export default function App() {
       }
     }
 
-    // getSession hanya hydrate UI — fetch profile cukup dari onAuthStateChange
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (cancelled) return
       setSession(session)
@@ -159,7 +157,7 @@ export default function App() {
                 <h1 className="text-4xl font-bold text-tp-text mb-2">404</h1>
                 <p className="text-sm text-tp-muted mb-4">Halaman yang Anda cari tidak ditemukan.</p>
                 <a href="/" className="inline-block rounded-xl bg-tp-green px-4 py-2 text-xs font-semibold text-white transition hover:bg-tp-green-hover">
-                  Kembali ke Beranda
+                  Ok
                 </a>
               </div>
             </div>

@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
-import { KeyRound, Eye, EyeOff, Laptop, Server, Activity, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react'
+import { KeyRound, Eye, EyeOff, Laptop, Server, Activity, RefreshCw, ChevronLeft, ChevronRight, MapPin } from 'lucide-react'
 
 interface LogItem {
   id: number
@@ -13,6 +13,7 @@ interface LogItem {
   action: string
   ip_address: string
   user_agent: string
+  location?: string // Tambahan properti lokasi
   details: string
   created_at: string
 }
@@ -68,11 +69,14 @@ export default function SuperAdminSecurity({ logs, onRefreshLogs }: SuperAdminSe
     setChangingPass(true)
     try {
       const token = localStorage.getItem('superadmin_token')
+      const cachedLocation = localStorage.getItem('superadmin_location')
+      const locationData = cachedLocation ? JSON.parse(cachedLocation) : null
       await axios.post(
         `${API_URL}/api/superadmin/change-password`,
         {
           old_password: oldPassword,
           new_password: newPassword,
+          location: locationData,
         },
         { headers: { Authorization: `Bearer ${token}` } }
       )
@@ -257,13 +261,14 @@ export default function SuperAdminSecurity({ logs, onRefreshLogs }: SuperAdminSe
                   <th className="px-5 py-3.5">Waktu</th>
                   <th className="px-5 py-3.5">Aksi / Aktivitas</th>
                   <th className="px-5 py-3.5">IP Address</th>
+                  <th className="px-5 py-3.5">Lokasi (Koordinat)</th>
                   <th className="px-5 py-3.5">Detail / Perangkat</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-tp-border">
                 {logs.length === 0 ? (
                   <tr>
-                    <td colSpan={4} className="px-5 py-8 text-center text-tp-muted text-xs">
+                    <td colSpan={5} className="px-5 py-8 text-center text-tp-muted text-xs">
                       Belum ada catatan log aktivitas keamanan.
                     </td>
                   </tr>
@@ -286,6 +291,20 @@ export default function SuperAdminSecurity({ logs, onRefreshLogs }: SuperAdminSe
                       </td>
                       <td className="px-5 py-3.5 text-xs font-mono text-tp-muted">
                         {log.ip_address || '-'}
+                      </td>
+                      <td className="px-5 py-3.5 text-xs text-tp-muted whitespace-nowrap">
+                        {log.location ? (
+                          <a 
+                            href={`https://maps.google.com/?q=${log.location}`} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-tp-green hover:underline font-mono"
+                          >
+                            <MapPin size={12} /> {log.location}
+                          </a>
+                        ) : (
+                          '-'
+                        )}
                       </td>
                       <td className="px-5 py-3.5 text-xs text-tp-text max-w-xs truncate" title={log.user_agent}>
                         {log.details || log.user_agent || '-'}

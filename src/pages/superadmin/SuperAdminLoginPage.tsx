@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import axios from 'axios'
 import teachpartnerIcon from '../../assets/teachpartner.png'
 import { Button } from '../../components/ui/button'
@@ -16,18 +16,63 @@ export default function SuperAdminLoginPage({ onLoginSuccess }: SuperAdminLoginP
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
+  const [lockCountdown, setLockCountdown] = useState<number>(0)
 
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080'
 
+  // Efek hitung mundur (countdown) secara real-time menggunakan tipe number standar browser
+  useEffect(() => {
+    let timer: number
+    if (lockCountdown > 0) {
+      timer = window.setInterval(() => {
+        setLockCountdown((prev) => {
+          if (prev <= 1) {
+            setErrorMsg('') 
+            return 0
+          }
+          const nextVal = prev - 1
+          setErrorMsg(`Akun Anda dikunci sementara karena terlalu banyak percobaan gagal. Coba lagi dalam ${nextVal} detik.`)
+          return nextVal
+        })
+      }, 1000)
+    }
+    return () => clearInterval(timer)
+  }, [lockCountdown])
+
+  // Meminta izin dan mengambil koordinat lokasi saat halaman dimuat
+  useEffect(() => {
+    if ('geolocation' in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const coords = {
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+          }
+          localStorage.setItem('superadmin_location', JSON.stringify(coords))
+        },
+        (error) => {
+          console.warn('Izin lokasi ditolak atau tidak tersedia:', error.message)
+        },
+        { timeout: 10000 }
+      )
+    }
+  }, [])
+
   const handleAdminLogin = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (lockCountdown > 0) return
+
     setLoading(true)
     setErrorMsg('')
+
+    const cachedLocation = localStorage.getItem('superadmin_location')
+    const locationData = cachedLocation ? JSON.parse(cachedLocation) : null
 
     try {
       const response = await axios.post(`${API_URL}/api/superadmin/superadmin-login`, {
         email,
         password,
+        location: locationData, 
       })
 
       const { token, nama } = response.data
@@ -37,7 +82,10 @@ export default function SuperAdminLoginPage({ onLoginSuccess }: SuperAdminLoginP
 
       onLoginSuccess(token, nama)
     } catch (err: any) {
-      if (err.response && err.response.data && err.response.data.error) {
+      if (err.response && err.response.status === 423) {
+        setLockCountdown(60)
+        setErrorMsg('Terlalu banyak percobaan gagal. Akun dikunci sementara selama 60 detik.')
+      } else if (err.response && err.response.data && err.response.data.error) {
         setErrorMsg(err.response.data.error)
       } else {
         setErrorMsg('Gagal terhubung ke server backend.')
@@ -139,10 +187,10 @@ export default function SuperAdminLoginPage({ onLoginSuccess }: SuperAdminLoginP
 
             <Button
               type="submit"
-              disabled={loading}
-              className="mt-2 w-full bg-tp-green hover:bg-tp-green-hover text-white font-semibold py-2.5 rounded-xl transition active:scale-[0.98]"
+              disabled={loading || lockCountdown > 0}
+              className="mt-2 w-full bg-tp-green hover:bg-tp-green-hover text-white font-semibold py-2.5 rounded-xl transition active:scale-[0.98] disabled:opacity-50"
             >
-              {loading ? 'Memverifikasi...' : 'Masuk sebagai Superadmin'}
+              {lockCountdown > 0 ? `Terkunci (${lockCountdown}s)` : loading ? 'Memverifikasi...' : 'Masuk sebagai Superadmin'}
             </Button>
           </form>
 
