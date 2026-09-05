@@ -9,6 +9,9 @@ import TermsPage from './pages/TermsPage'
 import PrivacyPage from './pages/PrivacyPage'
 import DisclaimerPage from './pages/DisclaimerPage'
 
+import ForgotPasswordPage from './pages/ForgotPasswordPage'
+import UpdatePasswordPage from './pages/UpdatePasswordPage'
+
 import MainLayout from './components/MainLayout'
 import DashboardOverview from './pages/DashboardOverview'
 import QuestionBankPage from './pages/QuestionBankPage'
@@ -135,6 +138,8 @@ export default function App() {
         <Route path="/terms" element={<TermsPage />} />
         <Route path="/privacy" element={<PrivacyPage />} />
         <Route path="/disclaimer" element={<DisclaimerPage />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/update-password" element={<UpdatePasswordPage />} />
 
         {/* --- Route User guru --- */}
         <Route 

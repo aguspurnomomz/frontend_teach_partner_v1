@@ -92,7 +92,12 @@ export default function LoginPage() {
             </div>
 
             <div className="grid gap-1">
-              <Label htmlFor="login-password" className="text-xs sm:text-sm">Password</Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="login-password" className="text-xs sm:text-sm">Kata Sandi</Label>
+                <Link to="/forgot-password" className="text-xs text-tp-green hover:underline font-medium">
+                  Lupa kata sandi?
+                </Link>
+              </div>
               <div className="relative flex items-center">
                 <Input
                   id="login-password"
@@ -125,7 +130,7 @@ export default function LoginPage() {
             </Button>
           </form>
 
-          {/* Checklist Syarat & Ketentuan dipindah ke atas tombol Google agar tidak terpotong di mobile */}
+          {/* Checklist Syarat & Ketentuan */}
           <div className="mt-4 flex items-start gap-2">
             <input
               type="checkbox"

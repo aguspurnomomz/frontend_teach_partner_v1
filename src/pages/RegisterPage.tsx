@@ -29,7 +29,7 @@ export default function RegisterPage() {
       alert('Gagal mendaftar: ' + error.message)
     } else {
       alert('Pendaftaran berhasil! Silakan masuk menggunakan akun baru Anda.')
-      navigate('/') // Kembali ke halaman login utama
+      navigate('/') 
     }
     setLoading(false)
   }
@@ -96,13 +96,13 @@ export default function RegisterPage() {
 
             <div className="grid gap-1.5">
               <Label htmlFor="register-password" className="text-[13px] font-semibold text-gray-700">
-                Password
+                Kata Sandi
               </Label>
               <div className="relative flex items-center">
                 <Input
                   id="register-password"
                   className="h-11 rounded-xl bg-white pr-10 text-sm text-tp-text"
-                  type={showPassword ? 'text' : 'password'}
+                  type={showPassword ? 'text' : 'kata sandi'}
                   placeholder="Minimal 6 karakter"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}

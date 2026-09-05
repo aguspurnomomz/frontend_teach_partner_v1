@@ -20,7 +20,6 @@ const PAGE_SIZE = 9
 const JENJANG_OPTIONS = ['SD/MI', 'SMP/MTs', 'SMA/MA', 'SMA/MA/SMK/MAK']
 const KATEGORI_OPTIONS = ['Kurikulum Merdeka', 'Kurikulum 2013', 'Nonteks']
 
-// Single-flight cache untuk mencegah request duplikat
 let fetchPromise: Promise<any> | null = null
 
 function CoverImage({ src, alt }: { src: string; alt: string }) {
