@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import axios from 'axios'
+import { api } from '../../lib/axios' 
 import teachpartnerIcon from '../../assets/teachpartner.png'
 import SuperAdminEbooks from './SuperAdminEbooks'
 import SuperAdminUsers from './SuperAdminUsers'
@@ -52,14 +52,13 @@ export default function SuperAdminDashboard({ adminName, onLogout }: SuperAdminD
   const [activeView, setActiveView] = useState<AdminView>('dashboard')
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080'
   const initial = (adminName?.charAt(0) || 'S').toUpperCase()
 
   const fetchRegisteredUsers = async () => {
     try {
       setLoading(true)
       const token = localStorage.getItem('superadmin_token')
-      const res = await axios.get(`${API_URL}/api/superadmin/registered-users`, {
+      const res = await api.get('/api/superadmin/registered-users', {
         headers: { Authorization: `Bearer ${token}` }
       })
       setUsers(res.data.users || [])
@@ -75,7 +74,7 @@ export default function SuperAdminDashboard({ adminName, onLogout }: SuperAdminD
   const fetchLogs = async () => {
     try {
       const token = localStorage.getItem('superadmin_token')
-      const res = await axios.get(`${API_URL}/api/superadmin/logs`, {
+      const res = await api.get('/api/superadmin/logs', {
         headers: { Authorization: `Bearer ${token}` }
       })
       setLogs(res.data.logs || [])

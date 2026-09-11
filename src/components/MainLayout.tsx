@@ -85,6 +85,15 @@ function IconWallet() {
   )
 }
 
+function IconQrCode() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M3 3h6v6H3zM15 3h6v6h-6zM3 15h6v6H3z" />
+      <path d="M14 14h3v3h-3zM19 19v3h-3v-3zM14 22h3M22 14v3M19 14h3v3" />
+    </svg>
+  )
+}
+
 export default function MainLayout({ session }: { session: any }) {
   const navigate = useNavigate()
   const location = useLocation()
@@ -100,6 +109,7 @@ export default function MainLayout({ session }: { session: any }) {
     { path: '/', label: 'Dashboard', icon: <IconHome /> },
     { path: '/question-bank', label: 'Bank Soal', icon: <IconBook />, badge: 'AI' },
     { path: '/ebooks', label: 'Referensi E-Book', icon: <IconBook /> },
+    { path: '/exam-session', label: 'Ujian', icon: <IconQrCode />, },
     { path: '/billing', label: 'Beli Token', icon: <IconWallet />, badge: 'PRO' },
     { path: '/profile', label: 'Identitas', icon: <IconSettings /> },
   ]

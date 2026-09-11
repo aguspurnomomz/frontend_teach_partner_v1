@@ -19,7 +19,6 @@ export default function RegisterPage() {
     e.preventDefault()
     setLoading(true)
     
-    // Proses pendaftaran ke Supabase Auth
     const { error } = await supabase.auth.signUp({ 
       email, 
       password 

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import axios from 'axios'
-import { supabase } from '../lib/supabaseClient' 
+import { supabase } from '../../lib/supabaseClient' 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Wallet, Zap, ShieldCheck } from 'lucide-react'
@@ -207,7 +207,7 @@ export default function BillingPage() {
                   }`}
                 >
                   {pkg.popular && (
-                    <span className="absolute -top-3 right-6 rounded-full bg-emerald-500 px-3 py-0.5 text-[11px] font-bold text-white shadow">
+                    <span className="absolute top-2 right-6 z-10 rounded-full bg-emerald-500 px-3 py-0.5 text-[11px] font-bold text-white shadow">
                       POPULER
                     </span>
                   )}

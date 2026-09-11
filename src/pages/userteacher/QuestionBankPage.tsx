@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
-import { createQuestionBank } from '../services/questionService'
-import { supabase } from '../lib/supabaseClient'
+import { createQuestionBank } from '../../services/questionService'
+import { supabase } from '../../lib/supabaseClient'
 import axios from 'axios'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'

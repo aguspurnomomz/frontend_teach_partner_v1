@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, useCallback } from 'react'
 import axios from 'axios'
-import { supabase } from '../lib/supabaseClient'
+import { supabase } from '../../lib/supabaseClient'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'

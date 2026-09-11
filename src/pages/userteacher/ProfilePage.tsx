@@ -6,7 +6,6 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent } from '@/components/ui/card'
 import { Save } from 'lucide-react'
 
-// Single-flight cache untuk mencegah request duplikat
 let fetchPromise: Promise<any> | null = null
 
 const gridClass = 'grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3'

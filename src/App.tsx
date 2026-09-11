@@ -13,11 +13,14 @@ import ForgotPasswordPage from './pages/ForgotPasswordPage'
 import UpdatePasswordPage from './pages/UpdatePasswordPage'
 
 import MainLayout from './components/MainLayout'
-import DashboardOverview from './pages/DashboardOverview'
-import QuestionBankPage from './pages/QuestionBankPage'
-import ProfilePage from './pages/ProfilePage'
-import EbooksPage from './pages/EbooksPage' 
-import BillingPage from './pages/BillingPage'
+import DashboardOverview from './pages/userteacher/DashboardOverview'
+import QuestionBankPage from './pages/userteacher/QuestionBankPage'
+import ProfilePage from './pages/userteacher/ProfilePage'
+import EbooksPage from './pages/userteacher/EbooksPage' 
+import BillingPage from './pages/userteacher/BillingPage'
+import ExamSessionPage from './pages/userteacher/ExamSessionPage'
+
+import TakeExamPage from './pages/studentexam/TakeExamPage'
 
 import SuperAdminLoginPage from './pages/superadmin/SuperAdminLoginPage'
 import SuperAdminDashboard from './pages/superadmin/SuperAdminDashboard'
@@ -140,6 +143,7 @@ export default function App() {
         <Route path="/disclaimer" element={<DisclaimerPage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/update-password" element={<UpdatePasswordPage />} />
+        <Route path="/exam/take" element={<TakeExamPage />} />
 
         {/* --- Route User guru --- */}
         <Route 
@@ -151,6 +155,7 @@ export default function App() {
           <Route path="question-bank" element={<QuestionBankPage onBack={() => window.location.href = '/'} />} />
           <Route path="ebooks" element={<EbooksPage />} /> 
           <Route path="billing" element={<BillingPage />} />
+          <Route path="exam-session" element={<ExamSessionPage />} />
         </Route>
 
         {/* --- 404 --- */}

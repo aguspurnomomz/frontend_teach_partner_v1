@@ -1,7 +1,10 @@
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Plus, ArrowUp, Video, Pause, Square } from 'lucide-react'
+import { Plus, ArrowUp, Video, Pause, Square, Send, Terminal } from 'lucide-react'
+import { supabase } from '../../lib/supabaseClient'
+import axios from 'axios'
 
 const weekBars = [
   { day: 'S', height: 42, muted: true },
@@ -16,7 +19,7 @@ const weekBars = [
 const projects = [
   { name: 'Bank Soal Matematika', due: 'Deadline: Jumat', color: 'bg-blue-100', emoji: '📊' },
   { name: 'Asesmen Bahasa Indonesia', due: 'Deadline: Senin', color: 'bg-pink-100', emoji: '📝' },
-  { name: 'Modul IPA Fase D', due: 'Deadline: Rabu', color: 'bg-emerald-100', emoji: '🧪' },
+  { name: 'Modul IPA Fase D', due: 'Deadline: Rabu', color: 'bg-emerald-100', emoji: '🔬' },
   { name: 'RPP Kelas 8', due: 'Deadline: Kamis', color: 'bg-amber-100', emoji: '📚' },
 ]
 
@@ -35,6 +38,29 @@ const badgeClass: Record<string, string> = {
 
 export default function DashboardOverview({ tokenBalance }: { tokenBalance: number }) {
   const navigate = useNavigate()
+  const [apiResponse, setApiResponse] = useState<string>('Belum ada request.')
+  const [loadingApi, setLoadingApi] = useState<boolean>(false)
+
+  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080'
+
+  const handleTestApi = async () => {
+    setLoadingApi(true)
+    setApiResponse('Mengirim permintaan ke backend Go...')
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.access_token || ''
+
+      const res = await axios.get(`${API_URL}/api/profile`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+
+      setApiResponse(JSON.stringify(res.data, null, 2))
+    } catch (err: any) {
+      setApiResponse('Gagal: ' + (err.response?.data?.error || err.message))
+    } finally {
+      setLoadingApi(false)
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -64,6 +90,27 @@ export default function DashboardOverview({ tokenBalance }: { tokenBalance: numb
           </Button>
         </div>
       </div>
+
+       <Card className="rounded-2xl border-tp-border shadow-sm">
+        <CardHeader className="flex flex-row items-center justify-between pb-3">
+          <CardTitle className="flex items-center gap-2 text-base font-bold text-tp-text">
+            <Terminal size={18} className="text-tp-green" /> Testing Endpoint Backend Go
+          </CardTitle>
+          <Button
+            type="button"
+            onClick={handleTestApi}
+            disabled={loadingApi}
+            className="bg-tp-green hover:bg-tp-green-hover text-white gap-2 rounded-xl h-9 px-4 text-xs font-semibold"
+          >
+            <Send size={14} /> {loadingApi ? 'Memproses...' : 'Test'}
+          </Button>
+        </CardHeader>
+        <CardContent>
+          <div className="rounded-xl bg-slate-900 p-4 text-xs text-emerald-400 font-mono overflow-x-auto max-h-40">
+            <pre>{apiResponse}</pre>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Grid Statistik Utama */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -290,6 +337,8 @@ export default function DashboardOverview({ tokenBalance }: { tokenBalance: numb
           </div>
         </div>
       </div>
+
+     
     </div>
   )
 }
