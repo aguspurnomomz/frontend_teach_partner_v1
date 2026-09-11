@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { supabase } from '../lib/supabaseClient'
+import { supabase } from '../../lib/supabaseClient'
 import axios from 'axios'
 import QuestionBankPage from './QuestionBankPage'
 import { Button } from '@/components/ui/button'
