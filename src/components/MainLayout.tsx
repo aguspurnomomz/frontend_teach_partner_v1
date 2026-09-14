@@ -107,10 +107,10 @@ export default function MainLayout({ session }: { session: any }) {
 
   const menuItems = [
     { path: '/', label: 'Dashboard', icon: <IconHome /> },
-    { path: '/question-bank', label: 'Bank Soal', icon: <IconBook />, badge: 'AI' },
+    { path: '/question-bank', label: 'Bank Soal', icon: <IconBook />, },
     { path: '/ebooks', label: 'Referensi E-Book', icon: <IconBook /> },
-    { path: '/exam-session', label: 'Ujian', icon: <IconQrCode />, },
-    { path: '/billing', label: 'Beli Token', icon: <IconWallet />, badge: 'PRO' },
+    { path: '/exam-session', label: 'Ujian', icon: <IconQrCode />, badge: 'Test'},
+    { path: '/billing', label: 'Beli Token', icon: <IconWallet />, },
     { path: '/profile', label: 'Identitas', icon: <IconSettings /> },
   ]
 
