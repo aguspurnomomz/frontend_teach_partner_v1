@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import axios from 'axios'
 import { supabase } from '../lib/supabaseClient'
 import { Button } from '../components/ui/button'
 import { Input } from '../components/ui/input'
@@ -8,21 +9,49 @@ export default function UpdatePasswordPage() {
   const [newPassword, setNewPassword] = useState('')
   const [loading, setLoading] = useState(false)
 
+  const API_URL = import.meta.env.VITE_API_URL
+
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
 
-    const { error } = await supabase.auth.updateUser({
+    // 1. Update password di Supabase Auth
+    const { data, error } = await supabase.auth.updateUser({
       password: newPassword,
     })
 
     if (error) {
-      alert('Gagal memperbarui password: ' + error.message)
-    } else {
-      alert('Password berhasil diperbarui! Silakan login kembali dengan password baru.')
-      await supabase.auth.signOut()
-      window.location.href = '/'
+      alert('Gagal memperbarui kata sandi: ' + error.message)
+      setLoading(false)
+      return
     }
+
+    try {
+      // 2. Ambil token secara aman (dari data update atau session aktif)
+      let token = (data as any)?.session?.access_token
+      
+      if (!token) {
+        const sessionRes = await supabase.auth.getSession()
+        token = sessionRes.data.session?.access_token || localStorage.getItem('token') || localStorage.getItem('access_token') || ''
+      }
+
+      // 3. Panggil endpoint backend Go agar mengirim email notifikasi via Resend
+      if (token) {
+        await axios.post(
+          `${API_URL}/api/auth/notify-password-changed`,
+          {},
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          }
+        )
+      }
+    } catch (err) {
+      console.error('Gagal mengirim trigger email notifikasi:', err)
+    }
+
+    alert('Kata sandi berhasil diperbarui! Email pemberitahuan telah dikirim. Silakan login kembali.')
+    await supabase.auth.signOut()
+    window.location.href = '/'
     setLoading(false)
   }
 
