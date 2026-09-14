@@ -155,7 +155,7 @@ export default function App() {
           <Route path="question-bank" element={<QuestionBankPage onBack={() => window.location.href = '/'} />} />
           <Route path="ebooks" element={<EbooksPage />} /> 
           <Route path="billing" element={<BillingPage />} />
-          <Route path="exam-session" element={<ExamSessionPage />} />
+          <Route path="exam-session" element={<ExamSessionPage session={session} />} />
         </Route>
 
         {/* --- 404 --- */}

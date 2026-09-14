@@ -110,7 +110,8 @@ export default function ExamSessionPage() {
         <Card className="rounded-2xl border-tp-border shadow-sm">
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-base font-bold text-tp-text">
-              <Sparkles size={18} className="text-tp-green" /> Konfigurasi Sesi dari Database
+              {/* <Sparkles size={18} className="text-tp-green" /> Konfigurasi Ujian */}
+              <Sparkles size={18} className="text-tp-green" /> Konfigurasi Ujian
             </CardTitle>
           </CardHeader>
           <CardContent>

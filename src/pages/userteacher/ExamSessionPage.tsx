@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import axios from 'axios'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { QrCode, Sparkles, RefreshCw, BookOpen, Layers, Eye, Trash2, RotateCcw, ChevronLeft, ChevronRight } from 'lucide-react'
+import { QrCode, RefreshCw, Layers, Eye, Trash2, RotateCcw, ChevronLeft, ChevronRight, Settings } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
 
 interface QuestionBank {
@@ -31,7 +31,7 @@ interface Submission {
   submitted_at: string
 }
 
-export default function ExamSessionPage() {
+export default function ExamSessionPage({ session }: { session: any }) {
   const [questionBanks, setQuestionBanks] = useState<QuestionBank[]>([])
   const [examSessions, setExamSessions] = useState<ExamSession[]>([])
   const [trashSessions, setTrashSessions] = useState<ExamSession[]>([])
@@ -58,14 +58,25 @@ export default function ExamSessionPage() {
   const [submissionPage, setSubmissionPage] = useState(1)
   const submissionsPerPage = 10
 
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080'
+  const API_URL = import.meta.env.VITE_API_URL
+
+  // Helper untuk mengambil token Auth konsisten dengan ProfilePage
+  const getAuthHeader = () => {
+    const token = session?.access_token || localStorage.getItem('token') || localStorage.getItem('access_token') || ''
+    return {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  }
 
   const fetchData = async () => {
     try {
+      setLoadingBank(true)
       const [banksRes, sessionsRes, trashRes] = await Promise.all([
-        axios.get(`${API_URL}/api/my-question-banks`),
-        axios.get(`${API_URL}/api/exam-sessions`),
-        axios.get(`${API_URL}/api/exam-sessions/trash`)
+        axios.get(`${API_URL}/api/my-question-banks`, getAuthHeader()),
+        axios.get(`${API_URL}/api/exam-sessions`, getAuthHeader()),
+        axios.get(`${API_URL}/api/exam-sessions/trash`, getAuthHeader())
       ])
 
       setQuestionBanks(banksRes.data.question_banks || [])
@@ -84,13 +95,15 @@ export default function ExamSessionPage() {
   }
 
   useEffect(() => {
-    fetchData()
-  }, [API_URL])
+    if (session?.access_token) {
+      fetchData()
+    }
+  }, [session, API_URL])
 
   const fetchSubmissions = async (sessionId: string) => {
     try {
       setLoadingSubmissions(true)
-      const res = await axios.get(`${API_URL}/api/exam-sessions/${sessionId}/submissions`)
+      const res = await axios.get(`${API_URL}/api/exam-sessions/${sessionId}/submissions`, getAuthHeader())
       setSubmissions(res.data.submissions || [])
       setSubmissionPage(1)
     } catch (err) {
@@ -102,10 +115,10 @@ export default function ExamSessionPage() {
 
   const handleDeleteSession = async (sessionId: string, e: React.MouseEvent) => {
     e.stopPropagation()
-    if (!confirm('Hapus sesi ujian ini ke tempat sampah ?')) return
+    if (!confirm('Hapus sesi ujian ini ke tempat sampah?')) return
 
     try {
-      await axios.delete(`${API_URL}/api/exam-sessions/${sessionId}`)
+      await axios.delete(`${API_URL}/api/exam-sessions/${sessionId}`, getAuthHeader())
       if (generatedSession?.id === sessionId) {
         setGeneratedSession(null)
         setSubmissions([])
@@ -119,7 +132,7 @@ export default function ExamSessionPage() {
 
   const handleRestoreSession = async (sessionId: string) => {
     try {
-      await axios.post(`${API_URL}/api/exam-sessions/${sessionId}/restore`)
+      await axios.post(`${API_URL}/api/exam-sessions/${sessionId}/restore`, {}, getAuthHeader())
       fetchData()
       alert('Sesi ujian berhasil dipulihkan!')
     } catch (err: any) {
@@ -152,7 +165,8 @@ export default function ExamSessionPage() {
           title: examTitle,
           question_bank_id: selectedBankId,
           duration_minutes: Number(duration),
-        }
+        },
+        getAuthHeader()
       )
 
       const newSession = {
@@ -172,13 +186,13 @@ export default function ExamSessionPage() {
     }
   }
 
-  const handleSelectActiveSession = (session: ExamSession) => {
+  const handleSelectActiveSession = (sessionItem: ExamSession) => {
     setGeneratedSession({
-      id: session.id,
-      token: session.qr_code_token,
-      title: session.title,
+      id: sessionItem.id,
+      token: sessionItem.qr_code_token,
+      title: sessionItem.title,
     })
-    fetchSubmissions(session.id)
+    fetchSubmissions(sessionItem.id)
   }
 
   // Pagination Logic for Sessions
@@ -211,7 +225,7 @@ export default function ExamSessionPage() {
         <Card className="rounded-2xl border-tp-border shadow-sm">
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-base font-bold text-tp-text">
-              <Sparkles size={18} className="text-tp-green" /> Konfigurasi Sesi dari Database
+              <Settings size={18} className="text-tp-green" /> Konfigurasi Ujian
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -224,7 +238,7 @@ export default function ExamSessionPage() {
                   <p className="text-xs text-tp-faint">Memuat bank soal...</p>
                 ) : questionBanks.length === 0 ? (
                   <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-700">
-                    Belum ada bank soal di database.
+                    Belum ada bank soal di database. Silakan buat bank soal terlebih dahulu di menu Bank Soal.
                   </div>
                 ) : (
                   <select
@@ -303,7 +317,7 @@ export default function ExamSessionPage() {
                 </div>
               ) : (
                 <div className="py-12 text-tp-faint space-y-2">
-                  <BookOpen size={48} className="mx-auto opacity-30" />
+                  <Settings size={48} className="mx-auto opacity-30" />
                   <p className="text-sm">Belum ada sesi yang dipilih.</p>
                   <p className="text-xs">Terbitkan sesi baru atau pilih dari daftar sesi aktif di bawah.</p>
                 </div>
@@ -359,16 +373,16 @@ export default function ExamSessionPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-tp-border bg-white">
-                    {currentSessions.map((session) => {
-                      const isSelected = generatedSession?.id === session.id
+                    {currentSessions.map((sessionItem) => {
+                      const isSelected = generatedSession?.id === sessionItem.id
                       return (
-                        <tr key={session.id} className={`hover:bg-slate-50 ${isSelected ? 'bg-emerald-50/50' : ''}`}>
-                          <td className="p-3 font-semibold text-tp-text">{session.title}</td>
-                          <td className="p-3">{session.duration_minutes} Menit</td>
+                        <tr key={sessionItem.id} className={`hover:bg-slate-50 ${isSelected ? 'bg-emerald-50/50' : ''}`}>
+                          <td className="p-3 font-semibold text-tp-text">{sessionItem.title}</td>
+                          <td className="p-3">{sessionItem.duration_minutes} Menit</td>
                           <td className="p-3 text-tp-faint">
                             {activeTab === 'active' 
-                              ? new Date(session.created_at).toLocaleString('id-ID') 
-                              : session.deleted_at ? new Date(session.deleted_at).toLocaleString('id-ID') : '-'}
+                              ? new Date(sessionItem.created_at).toLocaleString('id-ID') 
+                              : sessionItem.deleted_at ? new Date(sessionItem.deleted_at).toLocaleString('id-ID') : '-'}
                           </td>
                           <td className="p-3 text-right space-x-2">
                             {activeTab === 'active' ? (
@@ -376,7 +390,7 @@ export default function ExamSessionPage() {
                                 <Button
                                   size="sm"
                                   variant={isSelected ? 'default' : 'outline'}
-                                  onClick={() => handleSelectActiveSession(session)}
+                                  onClick={() => handleSelectActiveSession(sessionItem)}
                                   className={`h-8 text-xs gap-1.5 ${isSelected ? 'bg-tp-green hover:bg-tp-green-hover text-white' : ''}`}
                                 >
                                   <Eye size={14} /> {isSelected ? 'Dipantau' : 'Pantau'}
@@ -384,7 +398,7 @@ export default function ExamSessionPage() {
                                 <Button
                                   size="sm"
                                   variant="outline"
-                                  onClick={(e) => handleDeleteSession(session.id, e)}
+                                  onClick={(e) => handleDeleteSession(sessionItem.id, e)}
                                   className="h-8 text-xs text-red-600 border-red-200 hover:bg-red-50 gap-1"
                                 >
                                   <Trash2 size={14} /> Hapus
@@ -394,7 +408,7 @@ export default function ExamSessionPage() {
                               <Button
                                 size="sm"
                                 variant="outline"
-                                onClick={() => handleRestoreSession(session.id)}
+                                onClick={() => handleRestoreSession(sessionItem.id)}
                                 className="h-8 text-xs text-emerald-600 border-emerald-200 hover:bg-emerald-50 gap-1.5"
                               >
                                 <RotateCcw size={14} /> Pulihkan

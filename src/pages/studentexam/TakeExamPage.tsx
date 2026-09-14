@@ -136,12 +136,11 @@ export default function TakeExamPage() {
         {/* Header Identitas Sesi */}
         <div className="text-center space-y-1">
           <span className="inline-block rounded-full bg-emerald-100 text-tp-green px-3 py-1 text-xs font-bold uppercase tracking-wider">
-            Ujian Instan Siswa
+            Ujian Siswa
           </span>
           <h1 className="text-xl font-bold text-tp-text">{examTitle}</h1>
         </div>
 
-        {/* STEP 1: INPUT IDENTITAS SISWA */}
         {step === 'register' && (
           <Card className="rounded-2xl border-tp-border shadow-sm">
             <CardContent className="p-6">
@@ -155,7 +154,7 @@ export default function TakeExamPage() {
                     required
                     value={studentName}
                     onChange={(e) => setStudentName(e.target.value)}
-                    placeholder="Contoh: Siti Aminah"
+                    placeholder="Contoh: nama siswa"
                     className="w-full rounded-xl border border-tp-border bg-white px-3.5 py-2.5 text-sm text-tp-text focus:border-tp-green focus:outline-none"
                   />
                 </div>
@@ -170,7 +169,7 @@ export default function TakeExamPage() {
                       required
                       value={studentNumber}
                       onChange={(e) => setStudentNumber(e.target.value)}
-                      placeholder="Contoh: 14"
+                      placeholder="Contoh: 10"
                       className="w-full rounded-xl border border-tp-border bg-white px-3.5 py-2.5 text-sm text-tp-text focus:border-tp-green focus:outline-none"
                     />
                   </div>
@@ -200,7 +199,6 @@ export default function TakeExamPage() {
           </Card>
         )}
 
-        {/* STEP 2: LEMBAR SOAL UJIAN (NAVIGASI PER NOMOR & HALAMAN TUNGGAL) */}
         {step === 'exam' && currentQuestion && (
           <div className="space-y-4">
             {/* Info Siswa Ringkas */}
@@ -211,7 +209,7 @@ export default function TakeExamPage() {
 
             {/* NAVIGASI NOMOR SOAL DI ATAS */}
             <div className="bg-white border border-tp-border rounded-2xl p-3.5 shadow-sm">
-              <span className="block text-[11px] font-semibold text-tp-faint uppercase mb-2">Navigasi Nomor Soal:</span>
+              <span className="block text-[11px] font-semibold text-tp-faint uppercase mb-2">Nomor Soal:</span>
               <div className="flex flex-wrap gap-2">
                 {questions.map((q, idx) => {
                   const isAnswered = Boolean(answers[q.id])
@@ -317,9 +315,9 @@ export default function TakeExamPage() {
               <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-50 text-tp-green">
                 <CheckCircle2 size={36} />
               </div>
-              <h2 className="text-xl font-bold text-tp-text">Ujian Berhasil Diserahkan!</h2>
+              <h2 className="text-xl font-bold text-tp-text">Jawaban ujian berhasil disimpan!</h2>
               <p className="text-xs text-tp-muted max-w-sm mx-auto">
-                Terima kasih <strong>{studentName}</strong>. Lembar jawaban dan hasil nilai Anda telah terekam di server.
+                Terima kasih <strong>{studentName}</strong>. Lembar jawaban dan hasil nilai Anda telah terekam di system.
               </p>
             </CardContent>
           </Card>
