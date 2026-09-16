@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient'
+import axios from 'axios'
 import teachpartnerIcon from '../assets/teachpartner.png'
 import { Button } from '../components/ui/button'
 import { Input } from '../components/ui/input'
@@ -13,15 +14,41 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false) 
   const [loading, setLoading] = useState(false)
   const [agreed, setAgreed] = useState(false) 
+  const navigate = useNavigate()
+
+  const API_URL = import.meta.env.VITE_API_URL
 
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
-    if (error) {
-      alert('Gagal login: ' + error.message)
+    
+    try {
+      // 1. Login standar via Supabase Auth
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({ email, password })
+      if (authError) throw new Error(authError.message)
+
+      const token = authData.session?.access_token
+      if (!token) throw new Error('Sesi token tidak ditemukan.')
+
+      // 2. Cek role/tipe pengguna ke backend
+      const res = await axios.get(`${API_URL}/api/auth/check-role`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+
+      const role = res.data.role
+
+      // 3. Arahkan berdasarkan role
+      if (role === 'school_admin') {
+        navigate('/school-admin/dashboard', { replace: true })
+      } else {
+        navigate('/', { replace: true })
+      }
+
+    } catch (err: any) {
+      alert('Gagal login: ' + (err.response?.data?.error || err.message))
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }
 
   const handleGoogleLogin = async () => {

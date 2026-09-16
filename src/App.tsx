@@ -26,10 +26,16 @@ import SuperAdminLoginPage from './pages/superadmin/SuperAdminLoginPage'
 import SuperAdminDashboard from './pages/superadmin/SuperAdminDashboard'
 import SuperAdminEbooks from './pages/superadmin/SuperAdminEbooks'
 
+import SchoolAdminDashboard from './pages/adminschool/SchoolAdminDashboard'
+import SchoolDashboardOverview from './pages/adminschool/SchoolDashboardOverview'
+import SchoolAcademicYearPage from './pages/adminschool/SchoolAcademicYearPage'
+import SchoolProfilePage from './pages/adminschool/SchoolProfilePage'
+
 let lastProfileTokenFetched: string | null = null
 
 export default function App() {
   const [session, setSession] = useState<any>(null)
+  const [userRole, setUserRole] = useState<string | null>(null)
   const [tokenBalance, setTokenBalance] = useState(0)
   const [loading, setLoading] = useState(true)
 
@@ -41,16 +47,28 @@ export default function App() {
   useEffect(() => {
     let cancelled = false
 
-    const fetchTokenBalance = async (token: string) => {
-      if (!token || token === lastProfileTokenFetched) return
-      lastProfileTokenFetched = token
+    const checkRoleAndFetchData = async (token: string) => {
+      if (!token) return
       try {
-        const res = await axios.get(`${API_URL}/api/profile`, {
+        // 1. Cek tipe role pengguna terlebih dahulu
+        const roleRes = await axios.get(`${API_URL}/api/auth/check-role`, {
           headers: { Authorization: `Bearer ${token}` }
         })
-        if (!cancelled) setTokenBalance(res.data.token_balance)
+        const role = roleRes.data.role
+        if (!cancelled) setUserRole(role)
+
+        // 2. Hanya ambil profil & token balance jika role-nya adalah guru (teacher)
+        if (role === 'teacher') {
+          if (token !== lastProfileTokenFetched) {
+            lastProfileTokenFetched = token
+            const res = await axios.get(`${API_URL}/api/profile`, {
+              headers: { Authorization: `Bearer ${token}` }
+            })
+            if (!cancelled) setTokenBalance(res.data.token_balance)
+          }
+        }
       } catch (e) {
-        console.error(e)
+        console.error('Gagal memuat data sesi:', e)
         lastProfileTokenFetched = null
       }
     }
@@ -58,16 +76,23 @@ export default function App() {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (cancelled) return
       setSession(session)
-      setLoading(false)
+      if (session) {
+        checkRoleAndFetchData(session.access_token).finally(() => {
+          if (!cancelled) setLoading(false)
+        })
+      } else {
+        setLoading(false)
+      }
     })
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (cancelled) return
       setSession(session)
       if (session) {
-        fetchTokenBalance(session.access_token)
+        checkRoleAndFetchData(session.access_token)
       } else {
         lastProfileTokenFetched = null
+        setUserRole(null)
         setTokenBalance(0)
       }
     })
@@ -136,7 +161,23 @@ export default function App() {
           } 
         />
 
-        {/* --- Route Register (Publik) --- */}
+        {/* --- Route Admin Sekolah (Nested) --- */}
+        <Route 
+          path="/school-admin/dashboard" 
+          element={
+            session ? (
+              <SchoolAdminDashboard session={session} />
+            ) : (
+              <Navigate to="/" replace />
+            )
+          } 
+        >
+          <Route index element={<SchoolDashboardOverview />} />
+          <Route path="school" element={<SchoolProfilePage />} />
+          <Route path="academic-years" element={<SchoolAcademicYearPage />} />
+        </Route>
+
+        {/* --- Route Register & Publik --- */}
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/terms" element={<TermsPage />} />
         <Route path="/privacy" element={<PrivacyPage />} />
@@ -145,10 +186,18 @@ export default function App() {
         <Route path="/update-password" element={<UpdatePasswordPage />} />
         <Route path="/exam/take" element={<TakeExamPage />} />
 
-        {/* --- Route User guru --- */}
+        {/* --- Route User Guru (Diproteksi: Admin Sekolah otomatis diredirect ke dasbor mereka) --- */}
         <Route 
           path="/" 
-          element={session ? <MainLayout session={session} /> : <LoginPage />}
+          element={
+            !session ? (
+              <LoginPage />
+            ) : userRole === 'school_admin' ? (
+              <Navigate to="/school-admin/dashboard" replace />
+            ) : (
+              <MainLayout session={session} />
+            )
+          }
         >
           <Route index element={<DashboardOverview tokenBalance={tokenBalance} />} />
           <Route path="profile" element={<ProfilePage session={session} />} />

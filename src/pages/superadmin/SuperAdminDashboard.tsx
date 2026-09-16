@@ -1,9 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { api } from '../../lib/axios' 
+
 import teachpartnerIcon from '../../assets/teachpartner.png'
 import SuperAdminEbooks from './SuperAdminEbooks'
 import SuperAdminUsers from './SuperAdminUsers'
 import SuperAdminSecurity from './SuperAdminSecurity'
+import SuperAdminSchools from './SuperAdminSchools'
+
 import { Button } from '@/components/ui/button'
 import { 
   Home, 
@@ -12,7 +15,8 @@ import {
   ShieldCheck, 
   Menu, 
   LogOut, 
-  RefreshCw
+  RefreshCw, 
+  Building2
 } from 'lucide-react'
 
 interface UserItem {
@@ -42,7 +46,7 @@ interface SuperAdminDashboardProps {
   onLogout: () => void
 }
 
-type AdminView = 'dashboard' | 'users' | 'ebooks' | 'security'
+type AdminView = 'dashboard' | 'users' | 'schools' | 'ebooks' | 'security'
 
 export default function SuperAdminDashboard({ adminName, onLogout }: SuperAdminDashboardProps) {
   const [users, setUsers] = useState<UserItem[]>([])
@@ -99,6 +103,7 @@ export default function SuperAdminDashboard({ adminName, onLogout }: SuperAdminD
     { id: 'dashboard' as const, label: 'Dashboard', icon: <Home size={18} /> },
     { id: 'users' as const, label: 'User Guru', icon: <Users size={18} />, badge: String(stats.total) },
     { id: 'ebooks' as const, label: 'Kelola E-Book', icon: <BookOpen size={18} /> },
+    { id: 'schools' as const, label: 'Kelola Sekolah', icon: <Building2 size={18} /> },
     { id: 'security' as const, label: 'Keamanan & Log', icon: <ShieldCheck size={18} /> },
   ]
 
@@ -261,6 +266,8 @@ export default function SuperAdminDashboard({ adminName, onLogout }: SuperAdminD
             </div>
           ) : activeView === 'users' ? (
             <SuperAdminUsers users={users} loading={loading} onRefresh={fetchRegisteredUsers} />
+          ) : activeView === 'schools' ? (
+            <SuperAdminSchools />
           ) : activeView === 'ebooks' ? (
             <SuperAdminEbooks />
           ) : (
