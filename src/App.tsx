@@ -45,23 +45,53 @@ export default function App() {
   const [adminToken, setAdminToken] = useState<string | null>(localStorage.getItem('superadmin_token'))
   const [adminName, setAdminName] = useState<string>(localStorage.getItem('superadmin_name') || '')
 
+  const [authError, setAuthError] = useState<string | null>(null)
+
   const API_URL = import.meta.env.VITE_API_URL
 
   useEffect(() => {
     let cancelled = false
 
+    // const checkRoleAndFetchData = async (token: string) => {
+    //   if (!token) return
+    //   setCheckingRole(true) 
+    //   try {
+    //     // 1. Cek tipe role pengguna terlebih dahulu
+    //     const roleRes = await axios.get(`${API_URL}/api/auth/check-role`, {
+    //       headers: { Authorization: `Bearer ${token}` }
+    //     })
+    //     const role = roleRes.data.role
+    //     if (!cancelled) setUserRole(role)
+
+    //     // 2. Hanya ambil profil & token balance jika role-nya adalah guru (teacher)
+    //     if (role === 'teacher') {
+    //       if (token !== lastProfileTokenFetched) {
+    //         lastProfileTokenFetched = token
+    //         const res = await axios.get(`${API_URL}/api/profile`, {
+    //           headers: { Authorization: `Bearer ${token}` }
+    //         })
+    //         if (!cancelled) setTokenBalance(res.data.token_balance)
+    //       }
+    //     }
+    //   } catch (e) {
+    //     console.error('Gagal memuat data sesi:', e)
+    //     lastProfileTokenFetched = null
+    //   } finally {
+    //     setCheckingRole(false)  // ← SET FALSE
+    //   }
+    // }
+
     const checkRoleAndFetchData = async (token: string) => {
       if (!token) return
-      setCheckingRole(true) 
+      setCheckingRole(true)
+      setAuthError(null)
       try {
-        // 1. Cek tipe role pengguna terlebih dahulu
         const roleRes = await axios.get(`${API_URL}/api/auth/check-role`, {
           headers: { Authorization: `Bearer ${token}` }
         })
         const role = roleRes.data.role
         if (!cancelled) setUserRole(role)
 
-        // 2. Hanya ambil profil & token balance jika role-nya adalah guru (teacher)
         if (role === 'teacher') {
           if (token !== lastProfileTokenFetched) {
             lastProfileTokenFetched = token
@@ -71,11 +101,12 @@ export default function App() {
             if (!cancelled) setTokenBalance(res.data.token_balance)
           }
         }
-      } catch (e) {
+      } catch (e: any) {
         console.error('Gagal memuat data sesi:', e)
+        if (!cancelled) setAuthError(e.response?.data?.error || e.message)
         lastProfileTokenFetched = null
       } finally {
-        setCheckingRole(false)  // ← SET FALSE
+        if (!cancelled) setCheckingRole(false)
       }
     }
 
@@ -200,7 +231,24 @@ export default function App() {
           element={
             !session ? (
               <LoginPage />
-            ) : checkingRole || userRole === 'school_admin' ? (
+            ) : authError ? (
+              <div className="grid min-h-screen place-items-center text-center p-6">
+                <div>
+                  <h2 className="text-lg font-bold text-tp-text mb-2">Gagal memuat akun</h2>
+                  <p className="text-sm text-tp-muted mb-4">{authError}</p>
+                  <button 
+                    onClick={() => supabase.auth.signOut()}
+                    className="rounded-xl bg-tp-green px-4 py-2 text-xs font-semibold text-white"
+                  >
+                    Coba lagi
+                  </button>
+                </div>
+              </div>
+            ) : checkingRole || userRole === null ? (
+              <div className="grid min-h-screen place-items-center font-sans text-tp-muted">
+                Memverifikasi akun...
+              </div>
+            ) : userRole === 'school_admin' ? (
               <Navigate to="/school-admin/dashboard" replace />
             ) : (
               <MainLayout session={session} />

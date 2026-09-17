@@ -51,10 +51,32 @@ export default function LoginPage() {
     }
   }
 
+  // const handleGoogleLoginNot = async () => {
+  //   const { error } = await supabase.auth.signInWithOAuth({
+  //     provider: 'google',
+  //   })
+  //   if (error) {
+  //     alert('Gagal login dengan Google: ' + error.message)
+  //   }
+  // }
+
   const handleGoogleLogin = async () => {
-    const { error } = await supabase.auth.signInWithOAuth({
+  if (!agreed) {
+    alert('Harap setujui Syarat & Ketentuan terlebih dahulu.')
+    return
+  }
+
+  const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
+      options: {
+        redirectTo: `${window.location.origin}/`,
+        queryParams: {
+          access_type: 'offline',
+          prompt: 'consent',
+        },
+      },
     })
+
     if (error) {
       alert('Gagal login dengan Google: ' + error.message)
     }
