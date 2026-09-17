@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { supabase } from '../../lib/supabaseClient'
 import teachpartnerIcon from '../../assets/teachpartner.png'
-import { Building2, ShieldCheck, LogOut, Calendar, LayoutDashboard } from 'lucide-react'
+import { Users, Building2, ShieldCheck, LogOut, Calendar, LayoutDashboard } from 'lucide-react'
 
 export default function SchoolAdminDashboard({ session }: { session: any }) {
   const navigate = useNavigate()
@@ -20,6 +20,7 @@ export default function SchoolAdminDashboard({ session }: { session: any }) {
     { path: '/school-admin/dashboard', label: 'Ringkasan', icon: <LayoutDashboard size={18} /> },
     { path: '/school-admin/dashboard/school', label: 'Sekolah', icon: <Building2 size={18} /> },
     { path: '/school-admin/dashboard/academic-years', label: 'Tahun Akademik', icon: <Calendar size={18} /> },
+    { path: '/school-admin/dashboard/classes', label: 'Kurikulum & Kelas', icon: <Users size={18} /> },
   ]
 
   useEffect(() => {

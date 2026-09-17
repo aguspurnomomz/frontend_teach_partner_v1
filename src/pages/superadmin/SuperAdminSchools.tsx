@@ -41,6 +41,7 @@ export default function SuperAdminSchools() {
   const [adminPassword, setAdminPassword] = useState('')
   const [adminFullName, setAdminFullName] = useState('')
   const [adminNip, setAdminNip] = useState('')
+  const [jenjang, setJenjang] = useState('SMP')
 
   const fetchData = async () => {
     try {
@@ -78,7 +79,8 @@ export default function SuperAdminSchools() {
       const res = await api.post('/api/superadmin/schools', {
         school_name: schoolName,
         npsn,
-        address
+        address,
+        jenjang // Kirim data jenjang ke backend
       }, {
         headers: { Authorization: `Bearer ${token}` }
       })
@@ -87,6 +89,7 @@ export default function SuperAdminSchools() {
       setSchoolName('')
       setNpsn('')
       setAddress('')
+      setJenjang('SMP')
       fetchData()
     } catch (err: any) {
       setErrorMsg(err.response?.data?.error || 'Gagal mendaftarkan sekolah.')
@@ -148,6 +151,20 @@ export default function SuperAdminSchools() {
             <Building2 size={20} className="text-tp-green" /> Tambah Sekolah Baru
           </h2>
           <form onSubmit={handleRegisterSchool} className="space-y-4">
+            <div>
+              <label className="block text-xs font-semibold uppercase text-tp-muted mb-1">Jenjang Sekolah</label>
+              <select
+                required
+                className="w-full rounded-xl border border-tp-border px-3.5 py-2.5 text-sm outline-none focus:border-tp-green bg-white"
+                value={jenjang}
+                onChange={(e) => setJenjang(e.target.value)}
+              >
+                <option value="SD">SD (Sekolah Dasar)</option>
+                <option value="SMP">SMP (Sekolah Menengah Pertama)</option>
+                <option value="SMA">SMA (Sekolah Menengah Atas)</option>
+                <option value="SMK">Sekolah Menengah Kejuruan (SMK)</option>
+              </select>
+            </div>
             <div>
               <label className="block text-xs font-semibold uppercase text-tp-muted mb-1">Nama Sekolah</label>
               <input

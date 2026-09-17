@@ -30,12 +30,15 @@ import SchoolAdminDashboard from './pages/adminschool/SchoolAdminDashboard'
 import SchoolDashboardOverview from './pages/adminschool/SchoolDashboardOverview'
 import SchoolAcademicYearPage from './pages/adminschool/SchoolAcademicYearPage'
 import SchoolProfilePage from './pages/adminschool/SchoolProfilePage'
+import ClassManagementPage from './pages/adminschool/ClassManagementPage'
+
 
 let lastProfileTokenFetched: string | null = null
 
 export default function App() {
   const [session, setSession] = useState<any>(null)
   const [userRole, setUserRole] = useState<string | null>(null)
+  const [checkingRole, setCheckingRole] = useState(false) 
   const [tokenBalance, setTokenBalance] = useState(0)
   const [loading, setLoading] = useState(true)
 
@@ -49,6 +52,7 @@ export default function App() {
 
     const checkRoleAndFetchData = async (token: string) => {
       if (!token) return
+      setCheckingRole(true) 
       try {
         // 1. Cek tipe role pengguna terlebih dahulu
         const roleRes = await axios.get(`${API_URL}/api/auth/check-role`, {
@@ -70,6 +74,8 @@ export default function App() {
       } catch (e) {
         console.error('Gagal memuat data sesi:', e)
         lastProfileTokenFetched = null
+      } finally {
+        setCheckingRole(false)  // ← SET FALSE
       }
     }
 
@@ -175,6 +181,8 @@ export default function App() {
           <Route index element={<SchoolDashboardOverview />} />
           <Route path="school" element={<SchoolProfilePage />} />
           <Route path="academic-years" element={<SchoolAcademicYearPage />} />
+          <Route path="classes" element={<ClassManagementPage />} />
+          
         </Route>
 
         {/* --- Route Register & Publik --- */}
@@ -192,7 +200,7 @@ export default function App() {
           element={
             !session ? (
               <LoginPage />
-            ) : userRole === 'school_admin' ? (
+            ) : checkingRole || userRole === 'school_admin' ? (
               <Navigate to="/school-admin/dashboard" replace />
             ) : (
               <MainLayout session={session} />
