@@ -34,6 +34,16 @@ import ClassManagementPage from './pages/adminschool/ClassManagementPage'
 import StudentManagementPage from './pages/adminschool/StudentManagementPage'
 
 
+import AttendanceDashboard from './pages/adminschool/attendance/AttendanceDashboard'
+import ShiftManagementPage from './pages/adminschool/attendance/ShiftManagementPage'
+import CalendarManagementPage from './pages/adminschool/attendance/CalendarManagementPage'
+import ShiftAssignmentPage from './pages/adminschool/attendance/ShiftAssignmentPage'
+import QrCodeManagementPage from './pages/adminschool/attendance/QrCodeManagementPage'
+import AttendanceSessionPage from './pages/adminschool/attendance/AttendanceSessionPage'
+import AttendanceScannerPage from './pages/adminschool/attendance/AttendanceScannerPage'
+import AttendanceReportPage from './pages/adminschool/attendance/AttendanceReportPage'
+
+
 let lastProfileTokenFetched: string | null = null
 
 export default function App() {
@@ -215,6 +225,16 @@ export default function App() {
           <Route path="academic-years" element={<SchoolAcademicYearPage />} />
           <Route path="classes" element={<ClassManagementPage />} />
           <Route path="students" element={<StudentManagementPage />} /> 
+
+           {/* Attendance Routes */}
+          <Route path="attendance" element={<AttendanceDashboard />} />
+          <Route path="attendance/shifts" element={<ShiftManagementPage />} />
+          <Route path="attendance/calendar" element={<CalendarManagementPage />} />
+          <Route path="attendance/assignments" element={<ShiftAssignmentPage />} />
+          <Route path="attendance/qr-codes" element={<QrCodeManagementPage />} />
+          <Route path="attendance/sessions" element={<AttendanceSessionPage />} />
+          <Route path="attendance/scanner/:sessionId" element={<AttendanceScannerPage />} />
+          <Route path="attendance/reports" element={<AttendanceReportPage />} />
           
         </Route>
 

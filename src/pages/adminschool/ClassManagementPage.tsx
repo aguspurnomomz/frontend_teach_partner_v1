@@ -530,7 +530,7 @@ export default function ClassManagementPage() {
             >
               Daftar Sub Kelas
             </button>
-            <button
+            {/* <button
               onClick={() => setActiveTab('students')}
               className={`rounded-xl px-4 py-2 text-xs font-semibold transition-colors ${
                 activeTab === 'students'
@@ -539,7 +539,7 @@ export default function ClassManagementPage() {
               }`}
             >
               Daftar Murid
-            </button>
+            </button> */}
           </div>
           {activeTab === 'classes' && (
             <Button
