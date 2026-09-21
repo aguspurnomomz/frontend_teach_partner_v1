@@ -1,92 +1,214 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Button } from '../../components/ui/button'
-import { Plus, Trash2, CheckCircle, X } from 'lucide-react'
+import { Plus, Trash2, CheckCircle, X, Loader2 } from 'lucide-react'
 import { supabase } from '../../lib/supabaseClient'
 import axios from 'axios'
 
+interface ClassItem {
+  id: string
+  school_name: string
+  name: string
+  level: string
+  class_type: string
+  academic_year_id: string
+  academic_year_name: string
+  semester: string
+  created_at: string
+}
+
+interface AcademicYear {
+  id: string
+  name: string
+  semester: string
+  start_date: string | null
+  end_date: string | null
+  is_active: boolean
+  created_at: string
+}
+
+interface SchoolProfile {
+  id: string
+  school_name: string
+  npsn: string
+  jenjang?: string
+  is_active: boolean
+}
+
+type Jenjang = 'SD' | 'SMP' | 'SMA' | 'SMK'
+
+
+const CLASS_OPTIONS: Record<string, string[]> = {
+  SD: ['KELAS 1', 'KELAS 2', 'KELAS 3', 'KELAS 4', 'KELAS 5', 'KELAS 6'],
+  SMP: ['KELAS 7', 'KELAS 8', 'KELAS 9'],
+  SMA: ['KELAS 10', 'KELAS 11', 'KELAS 12'],
+  SMK: ['KELAS 10', 'KELAS 11', 'KELAS 12'],
+}
+
+const CLASS_TYPE_OPTIONS = ['Umum', 'Inklusi']
+
+const getDefaultClassName = (jenjang: Jenjang): string => {
+  switch (jenjang) {
+    case 'SD': return 'KELAS 1'
+    case 'SMP': return 'KELAS 7'
+    default: return 'KELAS 10'
+  }
+}
+
+const getDefaultLevel = (jenjang: Jenjang): string => {
+  switch (jenjang) {
+    case 'SD': return '1'
+    case 'SMP': return '7'
+    default: return '10'
+  }
+}
+
 export default function ClassManagementPage() {
-  const [classes, setClasses] = useState<any[]>([])
-  const [academicYears, setAcademicYears] = useState<any[]>([])
-  const [schoolJenjang, setSchoolJenjang] = useState('SMP') // Default SMP
+  const [classes, setClasses] = useState<ClassItem[]>([])
+  const [academicYears, setAcademicYears] = useState<AcademicYear[]>([])
+  const [schoolJenjang, setSchoolJenjang] = useState<Jenjang>('SMP')
+
   const [loading, setLoading] = useState(true)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [successMessage, setSuccessMessage] = useState('')
+  const [errorMessage, setErrorMessage] = useState('')
 
-  // Form states
   const [name, setName] = useState('')
   const [isCustomName, setIsCustomName] = useState(false)
   const [level, setLevel] = useState('7')
-  
   const [classType, setClassType] = useState('Umum')
   const [isCustomType, setIsCustomType] = useState(false)
-  
-  const [mapping, setMapping] = useState('')
-  const [quota, setQuota] = useState(36)
   const [academicYearId, setAcademicYearId] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
-  const API_URL = import.meta.env.VITE_API_URL
+  const API_URL = import.meta.env.VITE_API_URL as string
 
-  const getAuthToken = async () => {
+  const getAuthToken = async (): Promise<string | null> => {
     const { data: { session } } = await supabase.auth.getSession()
-    return session?.access_token
+    return session?.access_token ?? null
   }
 
-  const fetchData = async () => {
+  const showSuccess = (msg: string) => {
+    setSuccessMessage(msg)
+    setErrorMessage('')
+    setTimeout(() => setSuccessMessage(''), 4000)
+  }
+
+  const showError = (msg: string) => {
+    setErrorMessage(msg)
+    setSuccessMessage('')
+    setTimeout(() => setErrorMessage(''), 5000)
+  }
+
+  const fetchData = useCallback(async () => {
+    setLoading(true)
+    setErrorMessage('')
+
     try {
-      setLoading(true)
       const token = await getAuthToken()
-      
-      const [classRes, yearRes, profileRes] = await Promise.all([
-        axios.get(`${API_URL}/api/school-admin/classes`, { headers: { Authorization: `Bearer ${token}` } }),
-        axios.get(`${API_URL}/api/school-admin/academic-years`, { headers: { Authorization: `Bearer ${token}` } }),
-        axios.get(`${API_URL}/api/school-admin/profile`, { headers: { Authorization: `Bearer ${token}` } })
+      if (!token) {
+        showError('Sesi login tidak ditemukan. Silakan login ulang.')
+        return
+      }
+
+      const headers = { Authorization: `Bearer ${token}` }
+
+      const [classRes, yearRes, profileRes] = await Promise.allSettled([
+        axios.get(`${API_URL}/api/school-admin/classes`, { headers }),
+        axios.get(`${API_URL}/api/school-admin/academic-years`, { headers }),
+        axios.get(`${API_URL}/api/school-admin/profile`, { headers }),
       ])
 
-      setClasses(classRes.data.classes || [])
-      setAcademicYears(yearRes.data.academic_years || [])
-      
-      const jenjangDB = profileRes.data.school?.jenjang || 'SMP'
-      setSchoolJenjang(jenjangDB)
+  
+      if (classRes.status === 'fulfilled') {
+        setClasses(classRes.value.data?.classes ?? [])
+      } else {
+        console.error('[Classes] Gagal fetch:', classRes.reason)
+        setClasses([])
+      }
 
-      // Set default nilai kelas pertama sesuai jenjang
-      if (jenjangDB === 'SD') { setName('KELAS 1'); setLevel('1'); setMapping('1') }
-      else if (jenjangDB === 'SMP') { setName('KELAS 7'); setLevel('7'); setMapping('7') }
-      else { setName('KELAS 10'); setLevel('10'); setMapping('10') }
+
+      if (yearRes.status === 'fulfilled') {
+        const raw = yearRes.value.data?.academic_years
+        const parsed: AcademicYear[] = Array.isArray(raw) ? raw : []
+        setAcademicYears(parsed)
+        console.log('[Academic Years] Loaded:', parsed.length, parsed)
+      } else {
+        console.error('[Academic Years] Gagal fetch:', yearRes.reason)
+        setAcademicYears([])
+        showError('Gagal memuat data tahun akademik.')
+      }
+
+      let jenjang: Jenjang = 'SMP'
+      if (profileRes.status === 'fulfilled') {
+        const school: SchoolProfile | undefined = profileRes.value.data?.school
+        jenjang = (school?.jenjang as Jenjang) || 'SMP'
+      } else {
+        console.error('[Profile] Gagal fetch:', profileRes.reason)
+      }
+
+      setSchoolJenjang(jenjang)
+
+      setName(getDefaultClassName(jenjang))
+      setLevel(getDefaultLevel(jenjang))
 
     } catch (error) {
-      console.error('Gagal memuat data:', error)
+      console.error('[fetchData] Unexpected error:', error)
+      showError('Terjadi kesalahan saat memuat data.')
     } finally {
       setLoading(false)
     }
-  }
+  }, [API_URL])
 
   useEffect(() => {
     fetchData()
-  }, [API_URL])
+  }, [fetchData])
 
   const handleCreateClass = async (e: React.FormEvent) => {
     e.preventDefault()
-    try {
-      setSubmitting(true)
-      const token = await getAuthToken()
-      await axios.post(`${API_URL}/api/school-admin/classes`, {
-        name,
-        level,
-        class_type: classType,
-        mapping,
-        quota: Number(quota),
-        academic_year_id: academicYearId
-      }, {
-        headers: { Authorization: `Bearer ${token}` }
-      })
 
-      setSuccessMessage('Data kelas berhasil ditambahkan!')
+    if (!academicYearId) {
+      showError('Silakan pilih Tahun Akademik terlebih dahulu.')
+      return
+    }
+
+      // Debug: cek ID yang dikirim
+      // console.log('[CREATE CLASS] academicYearId:', academicYearId)
+      // console.log('[CREATE CLASS] Available years:', academicYears.map(y => ({ id: y.id, name: y.name })))
+
+    if (!name.trim()) {
+      showError('Nama kelas tidak boleh kosong.')
+      return
+    }
+    if (!level.trim()) {
+      showError('Tingkatan level tidak boleh kosong.')
+      return
+    }
+
+    setSubmitting(true)
+    try {
+      const token = await getAuthToken()
+      if (!token) {
+        showError('Sesi login tidak ditemukan.')
+        return
+      }
+
+      await axios.post(
+        `${API_URL}/api/school-admin/classes`,
+        {
+          name: name.trim(),
+          level: level.trim(),
+          class_type: classType,
+          academic_year_id: academicYearId,
+        },
+        { headers: { Authorization: `Bearer ${token}` } }
+      )
+
+      showSuccess('Data kelas berhasil ditambahkan!')
       setIsModalOpen(false)
-      fetchData()
-      setTimeout(() => setSuccessMessage(''), 4000)
+      await fetchData()
     } catch (error: any) {
-      alert('Gagal menambah kelas: ' + (error.response?.data?.error || error.message))
+      const msg = error.response?.data?.error || error.message || 'Terjadi kesalahan.'
+      showError('Gagal menambah kelas: ' + msg)
     } finally {
       setSubmitting(false)
     }
@@ -94,59 +216,58 @@ export default function ClassManagementPage() {
 
   const handleDeleteClass = async (id: string) => {
     if (!confirm('Apakah Anda yakin ingin menghapus kelas ini?')) return
+
     try {
       const token = await getAuthToken()
+      if (!token) {
+        showError('Sesi login tidak ditemukan.')
+        return
+      }
+
       await axios.delete(`${API_URL}/api/school-admin/classes/${id}`, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` },
       })
-      setSuccessMessage('Kelas berhasil dihapus!')
-      fetchData()
-      setTimeout(() => setSuccessMessage(''), 4000)
+
+      showSuccess('Kelas berhasil dihapus!')
+      await fetchData()
     } catch (error: any) {
-      alert('Gagal menghapus kelas: ' + (error.response?.data?.error || error.message))
+      const msg = error.response?.data?.error || error.message || 'Terjadi kesalahan.'
+      showError('Gagal menghapus kelas: ' + msg)
     }
   }
 
-  // Render opsi kelas berdasarkan jenjang sekolah
-  const renderClassOptions = () => {
-    if (schoolJenjang === 'SD') {
-      return (
-        <>
-          <option value="KELAS 1">KELAS 1</option>
-          <option value="KELAS 2">KELAS 2</option>
-          <option value="KELAS 3">KELAS 3</option>
-          <option value="KELAS 4">KELAS 4</option>
-          <option value="KELAS 5">KELAS 5</option>
-          <option value="KELAS 6">KELAS 6</option>
-        </>
-      )
-    } else if (schoolJenjang === 'SMP') {
-      return (
-        <>
-          <option value="KELAS 7">KELAS 7</option>
-          <option value="KELAS 8">KELAS 8</option>
-          <option value="KELAS 9">KELAS 9</option>
-        </>
-      )
-    } else {
-      // SMA / SMK
-      return (
-        <>
-          <option value="KELAS 10">KELAS 10</option>
-          <option value="KELAS 11">KELAS 11</option>
-          <option value="KELAS 12">KELAS 12</option>
-        </>
-      )
-    }
+  const handleOpenModal = () => {
+    setAcademicYearId('')
+    setName(getDefaultClassName(schoolJenjang))
+    setLevel(getDefaultLevel(schoolJenjang))
+    setClassType('Umum')
+    setIsCustomName(false)
+    setIsCustomType(false)
+    setIsModalOpen(true)
   }
+
+
+  const renderClassOptions = () => {
+    const options = CLASS_OPTIONS[schoolJenjang] ?? CLASS_OPTIONS.SMP
+    return options.map((opt) => (
+      <option key={opt} value={opt}>{opt}</option>
+    ))
+  }
+
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div>
-        <h1 className="text-xl font-bold text-tp-text">Kelola Kelas ({schoolJenjang})</h1>
-        <p className="text-xs text-tp-muted">Manajemen master tingkat kelas dan struktur rombongan belajar institusi.</p>
+        <h1 className="text-xl font-bold text-tp-text">
+          Kelola Kelas ({schoolJenjang})
+        </h1>
+        <p className="text-xs text-tp-muted">
+          Manajemen master tingkat kelas dan struktur rombongan belajar institusi.
+        </p>
       </div>
 
+      {/* Success Alert */}
       {successMessage && (
         <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-900 flex items-center gap-3">
           <CheckCircle size={20} className="text-tp-green shrink-0" />
@@ -154,15 +275,30 @@ export default function ClassManagementPage() {
         </div>
       )}
 
+      {/* Error Alert */}
+      {errorMessage && (
+        <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-red-900 flex items-center gap-3">
+          <X size={20} className="text-red-500 shrink-0" />
+          <span className="text-xs font-semibold">{errorMessage}</span>
+        </div>
+      )}
+
+      {/* Main Card */}
       <div className="rounded-2xl border border-tp-border bg-white p-6 shadow-sm space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-tp-border">
           <div className="flex gap-2">
-            <button className="rounded-xl bg-tp-green px-4 py-2 text-xs font-semibold text-white">Daftar Kelas</button>
-            <button className="rounded-xl border border-tp-border px-4 py-2 text-xs font-semibold text-tp-muted hover:bg-gray-50">Daftar Sub Kelas</button>
-            <button className="rounded-xl border border-tp-border px-4 py-2 text-xs font-semibold text-tp-muted hover:bg-gray-50">Daftar Murid</button>
+            <button className="rounded-xl bg-tp-green px-4 py-2 text-xs font-semibold text-white">
+              Daftar Kelas
+            </button>
+            <button className="rounded-xl border border-tp-border px-4 py-2 text-xs font-semibold text-tp-muted hover:bg-gray-50">
+              Daftar Sub Kelas
+            </button>
+            <button className="rounded-xl border border-tp-border px-4 py-2 text-xs font-semibold text-tp-muted hover:bg-gray-50">
+              Daftar Murid
+            </button>
           </div>
           <Button
-            onClick={() => setIsModalOpen(true)}
+            onClick={handleOpenModal}
             className="inline-flex items-center gap-2 rounded-xl bg-tp-green px-4 py-2.5 text-xs font-semibold text-white hover:bg-tp-green-hover"
           >
             <Plus size={16} />
@@ -170,7 +306,7 @@ export default function ClassManagementPage() {
           </Button>
         </div>
 
-        {/* Tabel Data Kelas */}
+        {/* Table */}
         {loading ? (
           <p className="text-center text-xs text-tp-muted py-8">Memuat daftar kelas...</p>
         ) : classes.length === 0 ? (
@@ -186,8 +322,7 @@ export default function ClassManagementPage() {
                   <th className="py-3 px-4">Nama Sekolah</th>
                   <th className="py-3 px-4">Kelas</th>
                   <th className="py-3 px-4">Tipe Kelas</th>
-                  <th className="py-3 px-4">Pemetaan Kelas</th>
-                  <th className="py-3 px-4">Kuota</th>
+                  <th className="py-3 px-4">Tahun Akademik</th>
                   <th className="py-3 px-4 text-right">Aksi</th>
                 </tr>
               </thead>
@@ -202,8 +337,9 @@ export default function ClassManagementPage() {
                         {cls.class_type}
                       </span>
                     </td>
-                    <td className="py-3 px-4">{cls.mapping || '-'}</td>
-                    <td className="py-3 px-4">{cls.quota}</td>
+                    <td className="py-3 px-4">
+                      {cls.academic_year_name} - Semester {cls.semester}
+                    </td>
                     <td className="py-3 px-4 text-right flex items-center justify-end gap-2">
                       <button
                         onClick={() => handleDeleteClass(cls.id)}
@@ -226,150 +362,155 @@ export default function ClassManagementPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-tp-border pb-3">
-              <h3 className="text-sm font-bold text-tp-text">Tambah Data Kelas ({schoolJenjang})</h3>
-              <button onClick={() => setIsModalOpen(false)} className="text-tp-muted hover:text-tp-text">
+              <h3 className="text-sm font-bold text-tp-text">
+                Tambah Data Kelas ({schoolJenjang})
+              </h3>
+              <button
+                onClick={() => setIsModalOpen(false)}
+                className="text-tp-muted hover:text-tp-text"
+              >
                 <X size={18} />
               </button>
             </div>
 
             <form onSubmit={handleCreateClass} className="space-y-4">
+              {/* --- Tahun Akademik (Field Pertama) --- */}
               <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="text-xs font-semibold text-tp-muted">Pilih atau Ketik Kelas *</label>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsCustomName(!isCustomName)
-                      if (!isCustomName) setName('')
-                      else setName(schoolJenjang === 'SD' ? 'KELAS 1' : schoolJenjang === 'SMP' ? 'KELAS 7' : 'KELAS 10')
-                    }}
-                    className="text-[10px] text-tp-green font-medium hover:underline"
-                  >
-                    {isCustomName ? 'Gunakan Pilihan Default' : '+ Ketik Manual'}
-                  </button>
-                </div>
-
-                {isCustomName ? (
-                  <input
-                    type="text"
-                    value={name}
-                    placeholder="Contoh: KELAS KHUSUS"
-                    onChange={(e) => setName(e.target.value)}
-                    className="w-full rounded-xl border border-tp-border px-3.5 py-2.5 text-sm outline-none focus:border-tp-green"
-                    required
-                  />
-                ) : (
-                  <select
-                    value={name}
-                    onChange={(e) => {
-                      const val = e.target.value
-                      setName(val)
-                      const match = val.match(/\d+/)
-                      if (match) {
-                        setLevel(match[0])
-                        setMapping(match[0])
-                      }
-                    }}
-                    className="w-full rounded-xl border border-tp-border px-3.5 py-2.5 text-sm outline-none focus:border-tp-green bg-white"
-                    required
-                  >
-                    {renderClassOptions()}
-                  </select>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-tp-muted mb-1">Tingkatan Level *</label>
-                <input
-                  type="text"
-                  value={level}
-                  onChange={(e) => setLevel(e.target.value)}
-                  placeholder="Contoh: 7"
-                  className="w-full rounded-xl border border-tp-border px-3.5 py-2.5 text-sm outline-none focus:border-tp-green"
-                  required
-                />
-              </div>
-
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="text-xs font-semibold text-tp-muted">Tipe Kelas *</label>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsCustomType(!isCustomType)
-                      if (!isCustomType) setClassType('')
-                      else setClassType('Umum')
-                    }}
-                    className="text-[10px] text-tp-green font-medium hover:underline"
-                  >
-                    {isCustomType ? 'Gunakan Pilihan Default' : '+ Ketik Manual'}
-                  </button>
-                </div>
-
-                {isCustomType ? (
-                  <input
-                    type="text"
-                    value={classType}
-                    placeholder="Contoh: Kelas Internasional"
-                    onChange={(e) => setClassType(e.target.value)}
-                    className="w-full rounded-xl border border-tp-border px-3.5 py-2.5 text-sm outline-none focus:border-tp-green"
-                    required
-                  />
-                ) : (
-                  <select
-                    value={classType}
-                    onChange={(e) => setClassType(e.target.value)}
-                    className="w-full rounded-xl border border-tp-border px-3.5 py-2.5 text-sm outline-none focus:border-tp-green bg-white"
-                    required
-                  >
-                    <option value="Umum">Umum</option>
-                    <option value="Peruntukan PPDB">Peruntukan PPDB</option>
-                    <option value="Unggulan">Unggulan</option>
-                    <option value="Inklusi">Inklusi</option>
-                  </select>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-tp-muted mb-1">Pemetaan Kelas *</label>
-                <input
-                  type="text"
-                  value={mapping}
-                  onChange={(e) => setMapping(e.target.value)}
-                  placeholder="Contoh: 7"
-                  className="w-full rounded-xl border border-tp-border px-3.5 py-2.5 text-sm outline-none focus:border-tp-green"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-tp-muted mb-1">Kuota Kapasitas Siswa</label>
-                <input
-                  type="number"
-                  value={quota}
-                  onChange={(e) => setQuota(Number(e.target.value))}
-                  className="w-full rounded-xl border border-tp-border px-3.5 py-2.5 text-sm outline-none focus:border-tp-green"
-                  min={0}
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-tp-muted mb-1">Tahun Akademik *</label>
+                <label className="block text-xs font-semibold text-tp-muted mb-1">
+                  Tahun Akademik *
+                </label>
                 <select
                   value={academicYearId}
                   onChange={(e) => setAcademicYearId(e.target.value)}
                   className="w-full rounded-xl border border-tp-border px-3.5 py-2.5 text-sm outline-none focus:border-tp-green bg-white"
                   required
+                  disabled={loading}
                 >
-                  <option value="">Pilih Tahun Akademik</option>
+                  <option value="">
+                    {loading
+                      ? 'Memuat tahun akademik...'
+                      : academicYears.length === 0
+                      ? '-- Belum ada tahun akademik --'
+                      : 'Pilih Tahun Akademik'}
+                  </option>
                   {academicYears.map((ay) => (
                     <option key={ay.id} value={ay.id}>
                       {ay.name} - Semester {ay.semester} {ay.is_active ? '(Aktif)' : ''}
                     </option>
                   ))}
                 </select>
+                {academicYears.length === 0 && !loading && (
+                  <p className="text-[10px] text-amber-600 mt-1">
+                    Belum ada tahun akademik. Silakan tambahkan terlebih dahulu di menu Tahun Akademik.
+                  </p>
+                )}
               </div>
 
+              {/* --- Field Lainnya: hanya muncul jika Tahun Akademik dipilih --- */}
+              {academicYearId && (
+                <>
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-xs font-semibold text-tp-muted">
+                        Pilih atau Ketik Kelas *
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const next = !isCustomName
+                          setIsCustomName(next)
+                          setName(next ? '' : getDefaultClassName(schoolJenjang))
+                        }}
+                        className="text-[10px] text-tp-green font-medium hover:underline"
+                      >
+                        {isCustomName ? 'Gunakan Pilihan Default' : '+ Ketik Manual'}
+                      </button>
+                    </div>
+
+                    {isCustomName ? (
+                      <input
+                        type="text"
+                        value={name}
+                        placeholder="Contoh: KELAS KHUSUS"
+                        onChange={(e) => setName(e.target.value)}
+                        className="w-full rounded-xl border border-tp-border px-3.5 py-2.5 text-sm outline-none focus:border-tp-green"
+                        required
+                      />
+                    ) : (
+                      <select
+                        value={name}
+                        onChange={(e) => {
+                          const val = e.target.value
+                          setName(val)
+                          const match = val.match(/\d+/)
+                          if (match) setLevel(match[0])
+                        }}
+                        className="w-full rounded-xl border border-tp-border px-3.5 py-2.5 text-sm outline-none focus:border-tp-green bg-white"
+                        required
+                      >
+                        {renderClassOptions()}
+                      </select>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-tp-muted mb-1">
+                      Tingkatan Level *
+                    </label>
+                    <input
+                      type="text"
+                      value={level}
+                      onChange={(e) => setLevel(e.target.value)}
+                      placeholder="Contoh: 7"
+                      className="w-full rounded-xl border border-tp-border px-3.5 py-2.5 text-sm outline-none focus:border-tp-green"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-xs font-semibold text-tp-muted">
+                        Tipe Kelas *
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const next = !isCustomType
+                          setIsCustomType(next)
+                          setClassType(next ? '' : 'Umum')
+                        }}
+                        className="text-[10px] text-tp-green font-medium hover:underline"
+                      >
+                        {isCustomType ? 'Gunakan Pilihan Default' : '+ Ketik Manual'}
+                      </button>
+                    </div>
+
+                    {isCustomType ? (
+                      <input
+                        type="text"
+                        value={classType}
+                        placeholder="Contoh: Kelas Internasional"
+                        onChange={(e) => setClassType(e.target.value)}
+                        className="w-full rounded-xl border border-tp-border px-3.5 py-2.5 text-sm outline-none focus:border-tp-green"
+                        required
+                      />
+                    ) : (
+                      <select
+                        value={classType}
+                        onChange={(e) => setClassType(e.target.value)}
+                        className="w-full rounded-xl border border-tp-border px-3.5 py-2.5 text-sm outline-none focus:border-tp-green bg-white"
+                        required
+                      >
+                        {CLASS_TYPE_OPTIONS.map((opt) => (
+                          <option key={opt} value={opt}>{opt}</option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+                </>
+              )}
+
+              {/* Action Buttons */}
               <div className="flex justify-end gap-3 pt-2">
                 <button
                   type="button"
@@ -380,9 +521,10 @@ export default function ClassManagementPage() {
                 </button>
                 <button
                   type="submit"
-                  disabled={submitting}
-                  className="rounded-xl bg-tp-green px-4 py-2.5 text-xs font-semibold text-white hover:bg-tp-green-hover disabled:opacity-50"
+                  disabled={submitting || !academicYearId}
+                  className="inline-flex items-center gap-2 rounded-xl bg-tp-green px-4 py-2.5 text-xs font-semibold text-white hover:bg-tp-green-hover disabled:opacity-50 disabled:cursor-not-allowed"
                 >
+                  {submitting && <Loader2 size={14} className="animate-spin" />}
                   {submitting ? 'Menyimpan...' : 'Simpan Kelas'}
                 </button>
               </div>
