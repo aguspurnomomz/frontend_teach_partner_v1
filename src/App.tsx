@@ -31,6 +31,7 @@ import SchoolDashboardOverview from './pages/adminschool/SchoolDashboardOverview
 import SchoolAcademicYearPage from './pages/adminschool/SchoolAcademicYearPage'
 import SchoolProfilePage from './pages/adminschool/SchoolProfilePage'
 import ClassManagementPage from './pages/adminschool/ClassManagementPage'
+import StudentManagementPage from './pages/adminschool/StudentManagementPage'
 
 
 let lastProfileTokenFetched: string | null = null
@@ -213,6 +214,7 @@ export default function App() {
           <Route path="school" element={<SchoolProfilePage />} />
           <Route path="academic-years" element={<SchoolAcademicYearPage />} />
           <Route path="classes" element={<ClassManagementPage />} />
+          <Route path="students" element={<StudentManagementPage />} /> 
           
         </Route>
 

@@ -1,9 +1,20 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Button } from '../../components/ui/button'
-import { Plus, Trash2, CheckCircle, X, Loader2 } from 'lucide-react'
+import {
+  Plus,
+  Trash2,
+  CheckCircle,
+  X,
+  Loader2,
+  Layers,
+  Users,
+} from 'lucide-react'
 import { supabase } from '../../lib/supabaseClient'
 import axios from 'axios'
 
+// ============================================
+// Types
+// ============================================
 interface ClassItem {
   id: string
   school_name: string
@@ -14,6 +25,37 @@ interface ClassItem {
   academic_year_name: string
   semester: string
   created_at: string
+}
+
+interface SubClass {
+  id: string
+  name: string
+  code: string
+  capacity: number
+  notes: string
+  homeroom_teacher_id: string | null
+  homeroom_teacher_name: string
+  is_active: boolean
+  created_at: string
+}
+
+interface SubClassWithClass {
+  id: string
+  name: string
+  code: string
+  capacity: number
+  notes: string
+  homeroom_teacher_id: string | null
+  homeroom_teacher_name: string
+  is_active: boolean
+  created_at: string
+  class_group_id: string
+  class_group_name: string
+  class_group_level: string
+  class_group_type: string
+  academic_year_id: string
+  academic_year_name: string
+  semester: string
 }
 
 interface AcademicYear {
@@ -35,8 +77,11 @@ interface SchoolProfile {
 }
 
 type Jenjang = 'SD' | 'SMP' | 'SMA' | 'SMK'
+type TabType = 'classes' | 'sub-classes' | 'students'
 
-
+// ============================================
+// Constants
+// ============================================
 const CLASS_OPTIONS: Record<string, string[]> = {
   SD: ['KELAS 1', 'KELAS 2', 'KELAS 3', 'KELAS 4', 'KELAS 5', 'KELAS 6'],
   SMP: ['KELAS 7', 'KELAS 8', 'KELAS 9'],
@@ -62,16 +107,23 @@ const getDefaultLevel = (jenjang: Jenjang): string => {
   }
 }
 
+// ============================================
+// Component
+// ============================================
 export default function ClassManagementPage() {
+  // ===== Data states =====
   const [classes, setClasses] = useState<ClassItem[]>([])
   const [academicYears, setAcademicYears] = useState<AcademicYear[]>([])
   const [schoolJenjang, setSchoolJenjang] = useState<Jenjang>('SMP')
 
+  // ===== UI states =====
   const [loading, setLoading] = useState(true)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [successMessage, setSuccessMessage] = useState('')
   const [errorMessage, setErrorMessage] = useState('')
+  const [activeTab, setActiveTab] = useState<TabType>('classes')
 
+  // ===== Form state: Create Class =====
   const [name, setName] = useState('')
   const [isCustomName, setIsCustomName] = useState(false)
   const [level, setLevel] = useState('7')
@@ -80,13 +132,36 @@ export default function ClassManagementPage() {
   const [academicYearId, setAcademicYearId] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
+  // ===== State: Sub Class Modal (per master kelas) =====
+  const [isSubClassModalOpen, setIsSubClassModalOpen] = useState(false)
+  const [selectedClassForSub, setSelectedClassForSub] = useState<ClassItem | null>(null)
+  const [subClasses, setSubClasses] = useState<SubClass[]>([])
+  const [subClassLoading, setSubClassLoading] = useState(false)
+  const [subClassError, setSubClassError] = useState('')
+
+  // ===== Form state: Create Sub Class =====
+  const [subClassName, setSubClassName] = useState('')
+  const [subClassCapacity, setSubClassCapacity] = useState(0)
+  const [subClassNotes, setSubClassNotes] = useState('')
+  const [subClassSubmitting, setSubClassSubmitting] = useState(false)
+
+  // ===== State: All Sub Classes (untuk tab) =====
+  const [allSubClasses, setAllSubClasses] = useState<SubClassWithClass[]>([])
+  const [allSubClassesLoading, setAllSubClassesLoading] = useState(false)
+
   const API_URL = import.meta.env.VITE_API_URL as string
 
+  // ============================================
+  // Auth
+  // ============================================
   const getAuthToken = async (): Promise<string | null> => {
     const { data: { session } } = await supabase.auth.getSession()
     return session?.access_token ?? null
   }
 
+  // ============================================
+  // Notifications
+  // ============================================
   const showSuccess = (msg: string) => {
     setSuccessMessage(msg)
     setErrorMessage('')
@@ -99,6 +174,9 @@ export default function ClassManagementPage() {
     setTimeout(() => setErrorMessage(''), 5000)
   }
 
+  // ============================================
+  // Fetch Data
+  // ============================================
   const fetchData = useCallback(async () => {
     setLoading(true)
     setErrorMessage('')
@@ -118,7 +196,7 @@ export default function ClassManagementPage() {
         axios.get(`${API_URL}/api/school-admin/profile`, { headers }),
       ])
 
-  
+      // --- Classes ---
       if (classRes.status === 'fulfilled') {
         setClasses(classRes.value.data?.classes ?? [])
       } else {
@@ -126,18 +204,18 @@ export default function ClassManagementPage() {
         setClasses([])
       }
 
-
+      // --- Academic Years ---
       if (yearRes.status === 'fulfilled') {
         const raw = yearRes.value.data?.academic_years
         const parsed: AcademicYear[] = Array.isArray(raw) ? raw : []
         setAcademicYears(parsed)
-        console.log('[Academic Years] Loaded:', parsed.length, parsed)
       } else {
         console.error('[Academic Years] Gagal fetch:', yearRes.reason)
         setAcademicYears([])
         showError('Gagal memuat data tahun akademik.')
       }
 
+      // --- School Profile ---
       let jenjang: Jenjang = 'SMP'
       if (profileRes.status === 'fulfilled') {
         const school: SchoolProfile | undefined = profileRes.value.data?.school
@@ -147,10 +225,8 @@ export default function ClassManagementPage() {
       }
 
       setSchoolJenjang(jenjang)
-
       setName(getDefaultClassName(jenjang))
       setLevel(getDefaultLevel(jenjang))
-
     } catch (error) {
       console.error('[fetchData] Unexpected error:', error)
       showError('Terjadi kesalahan saat memuat data.')
@@ -163,6 +239,17 @@ export default function ClassManagementPage() {
     fetchData()
   }, [fetchData])
 
+  // Auto fetch all sub classes saat tab aktif
+  useEffect(() => {
+    if (activeTab === 'sub-classes') {
+      fetchAllSubClasses()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab])
+
+  // ============================================
+  // CLASS ACTIONS
+  // ============================================
   const handleCreateClass = async (e: React.FormEvent) => {
     e.preventDefault()
 
@@ -170,11 +257,6 @@ export default function ClassManagementPage() {
       showError('Silakan pilih Tahun Akademik terlebih dahulu.')
       return
     }
-
-      // Debug: cek ID yang dikirim
-      // console.log('[CREATE CLASS] academicYearId:', academicYearId)
-      // console.log('[CREATE CLASS] Available years:', academicYears.map(y => ({ id: y.id, name: y.name })))
-
     if (!name.trim()) {
       showError('Nama kelas tidak boleh kosong.')
       return
@@ -215,7 +297,12 @@ export default function ClassManagementPage() {
   }
 
   const handleDeleteClass = async (id: string) => {
-    if (!confirm('Apakah Anda yakin ingin menghapus kelas ini?')) return
+    if (
+      !confirm(
+        'Apakah Anda yakin ingin menghapus kelas ini? Semua sub kelas di dalamnya juga akan terhapus.'
+      )
+    )
+      return
 
     try {
       const token = await getAuthToken()
@@ -230,13 +317,16 @@ export default function ClassManagementPage() {
 
       showSuccess('Kelas berhasil dihapus!')
       await fetchData()
+      if (activeTab === 'sub-classes') {
+        await fetchAllSubClasses()
+      }
     } catch (error: any) {
       const msg = error.response?.data?.error || error.message || 'Terjadi kesalahan.'
       showError('Gagal menghapus kelas: ' + msg)
     }
   }
 
-  const handleOpenModal = () => {
+  const handleOpenClassModal = () => {
     setAcademicYearId('')
     setName(getDefaultClassName(schoolJenjang))
     setLevel(getDefaultLevel(schoolJenjang))
@@ -246,7 +336,138 @@ export default function ClassManagementPage() {
     setIsModalOpen(true)
   }
 
+  // ============================================
+  // SUB CLASS ACTIONS
+  // ============================================
+  const fetchSubClasses = async (classGroupId: string) => {
+    setSubClassLoading(true)
+    setSubClassError('')
+    try {
+      const token = await getAuthToken()
+      if (!token) {
+        setSubClassError('Sesi login tidak ditemukan.')
+        return
+      }
 
+      const res = await axios.get(
+        `${API_URL}/api/school-admin/classes/${classGroupId}/sub-classes`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      )
+      setSubClasses(res.data?.sub_classes ?? [])
+    } catch (error: any) {
+      console.error('[SubClass] Gagal fetch:', error)
+      setSubClasses([])
+      setSubClassError(
+        error.response?.data?.error || 'Gagal memuat daftar sub kelas.'
+      )
+    } finally {
+      setSubClassLoading(false)
+    }
+  }
+
+  const fetchAllSubClasses = async () => {
+    setAllSubClassesLoading(true)
+    try {
+      const token = await getAuthToken()
+      if (!token) {
+        showError('Sesi login tidak ditemukan.')
+        return
+      }
+
+      const res = await axios.get(
+        `${API_URL}/api/school-admin/sub-classes`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      )
+      setAllSubClasses(res.data?.sub_classes ?? [])
+    } catch (error: any) {
+      console.error('[All SubClasses] Gagal fetch:', error)
+      setAllSubClasses([])
+    } finally {
+      setAllSubClassesLoading(false)
+    }
+  }
+
+  const handleOpenSubClassModal = async (cls: ClassItem) => {
+    setSelectedClassForSub(cls)
+    setSubClassName('')
+    setSubClassCapacity(0)
+    setSubClassNotes('')
+    setSubClassError('')
+    setIsSubClassModalOpen(true)
+    await fetchSubClasses(cls.id)
+  }
+
+  const handleCreateSubClass = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!selectedClassForSub) return
+    if (!subClassName.trim()) {
+      setSubClassError('Nama sub kelas tidak boleh kosong.')
+      return
+    }
+
+    setSubClassSubmitting(true)
+    setSubClassError('')
+
+    try {
+      const token = await getAuthToken()
+      if (!token) {
+        setSubClassError('Sesi login tidak ditemukan.')
+        return
+      }
+
+      await axios.post(
+        `${API_URL}/api/school-admin/sub-classes`,
+        {
+          class_group_id: selectedClassForSub.id,
+          name: subClassName.trim(),
+          capacity: Number(subClassCapacity) || 0,
+          notes: subClassNotes.trim(),
+        },
+        { headers: { Authorization: `Bearer ${token}` } }
+      )
+
+      setSubClassName('')
+      setSubClassCapacity(0)
+      setSubClassNotes('')
+      await fetchSubClasses(selectedClassForSub.id)
+      showSuccess('Sub kelas berhasil ditambahkan!')
+    } catch (error: any) {
+      const msg = error.response?.data?.error || error.message
+      setSubClassError('Gagal menambah sub kelas: ' + msg)
+    } finally {
+      setSubClassSubmitting(false)
+    }
+  }
+
+  const handleDeleteSubClass = async (subId: string) => {
+    if (!confirm('Yakin ingin menghapus sub kelas ini?')) return
+
+    try {
+      const token = await getAuthToken()
+      if (!token) return
+
+      await axios.delete(
+        `${API_URL}/api/school-admin/sub-classes/${subId}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      )
+
+      if (selectedClassForSub) {
+        await fetchSubClasses(selectedClassForSub.id)
+      }
+      if (activeTab === 'sub-classes') {
+        await fetchAllSubClasses()
+      }
+
+      showSuccess('Sub kelas berhasil dihapus!')
+    } catch (error: any) {
+      const msg = error.response?.data?.error || error.message
+      showError('Gagal menghapus sub kelas: ' + msg)
+    }
+  }
+
+  // ============================================
+  // Helpers
+  // ============================================
   const renderClassOptions = () => {
     const options = CLASS_OPTIONS[schoolJenjang] ?? CLASS_OPTIONS.SMP
     return options.map((opt) => (
@@ -254,7 +475,9 @@ export default function ClassManagementPage() {
     ))
   }
 
-
+  // ============================================
+  // Render
+  // ============================================
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -287,77 +510,237 @@ export default function ClassManagementPage() {
       <div className="rounded-2xl border border-tp-border bg-white p-6 shadow-sm space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-tp-border">
           <div className="flex gap-2">
-            <button className="rounded-xl bg-tp-green px-4 py-2 text-xs font-semibold text-white">
+            <button
+              onClick={() => setActiveTab('classes')}
+              className={`rounded-xl px-4 py-2 text-xs font-semibold transition-colors ${
+                activeTab === 'classes'
+                  ? 'bg-tp-green text-white'
+                  : 'border border-tp-border text-tp-muted hover:bg-gray-50'
+              }`}
+            >
               Daftar Kelas
             </button>
-            <button className="rounded-xl border border-tp-border px-4 py-2 text-xs font-semibold text-tp-muted hover:bg-gray-50">
+            <button
+              onClick={() => setActiveTab('sub-classes')}
+              className={`rounded-xl px-4 py-2 text-xs font-semibold transition-colors ${
+                activeTab === 'sub-classes'
+                  ? 'bg-tp-green text-white'
+                  : 'border border-tp-border text-tp-muted hover:bg-gray-50'
+              }`}
+            >
               Daftar Sub Kelas
             </button>
-            <button className="rounded-xl border border-tp-border px-4 py-2 text-xs font-semibold text-tp-muted hover:bg-gray-50">
+            <button
+              onClick={() => setActiveTab('students')}
+              className={`rounded-xl px-4 py-2 text-xs font-semibold transition-colors ${
+                activeTab === 'students'
+                  ? 'bg-tp-green text-white'
+                  : 'border border-tp-border text-tp-muted hover:bg-gray-50'
+              }`}
+            >
               Daftar Murid
             </button>
           </div>
-          <Button
-            onClick={handleOpenModal}
-            className="inline-flex items-center gap-2 rounded-xl bg-tp-green px-4 py-2.5 text-xs font-semibold text-white hover:bg-tp-green-hover"
-          >
-            <Plus size={16} />
-            Tambah Kelas
-          </Button>
+          {activeTab === 'classes' && (
+            <Button
+              onClick={handleOpenClassModal}
+              className="inline-flex items-center gap-2 rounded-xl bg-tp-green px-4 py-2.5 text-xs font-semibold text-white hover:bg-tp-green-hover"
+            >
+              <Plus size={16} />
+              Tambah Kelas
+            </Button>
+          )}
+          {activeTab === 'sub-classes' && (
+            <Button
+              onClick={fetchAllSubClasses}
+              variant="outline"
+              className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-semibold"
+            >
+              <Loader2
+                size={14}
+                className={allSubClassesLoading ? 'animate-spin' : ''}
+              />
+              Refresh
+            </Button>
+          )}
         </div>
 
-        {/* Table */}
-        {loading ? (
-          <p className="text-center text-xs text-tp-muted py-8">Memuat daftar kelas...</p>
-        ) : classes.length === 0 ? (
+        {/* ============================================
+            TAB: Daftar Kelas
+        ============================================ */}
+        {activeTab === 'classes' && (
+          <>
+            {loading ? (
+              <p className="text-center text-xs text-tp-muted py-8">Memuat daftar kelas...</p>
+            ) : classes.length === 0 ? (
+              <div className="text-center py-12 text-tp-muted text-xs">
+                Belum ada data kelas yang terdaftar. Silakan buat master kelas baru.
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse text-sm">
+                  <thead>
+                    <tr className="border-b border-tp-border bg-gray-50 text-xs text-tp-muted uppercase tracking-wider">
+                      <th className="py-3 px-4">No</th>
+                      <th className="py-3 px-4">Nama Sekolah</th>
+                      <th className="py-3 px-4">Kelas</th>
+                      <th className="py-3 px-4">Tipe Kelas</th>
+                      <th className="py-3 px-4">Tahun Akademik</th>
+                      <th className="py-3 px-4 text-right">Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-tp-border">
+                    {classes.map((cls, index) => (
+                      <tr key={cls.id} className="hover:bg-gray-50">
+                        <td className="py-3 px-4 text-tp-muted">{index + 1}</td>
+                        <td className="py-3 px-4 font-medium text-tp-text">{cls.school_name}</td>
+                        <td className="py-3 px-4 font-semibold text-tp-text">{cls.name}</td>
+                        <td className="py-3 px-4">
+                          <span className="inline-flex items-center rounded-md bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700">
+                            {cls.class_type}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4">
+                          {cls.academic_year_name} - Semester {cls.semester}
+                        </td>
+                        <td className="py-3 px-4">
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              onClick={() => handleOpenSubClassModal(cls)}
+                              className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg transition-colors"
+                              title="Kelola Sub Kelas"
+                            >
+                              <Layers size={16} />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteClass(cls.id)}
+                              className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                              title="Hapus Kelas"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </>
+        )}
+
+        {/* ============================================
+            TAB: Daftar Sub Kelas (Semua Master)
+        ============================================ */}
+        {activeTab === 'sub-classes' && (
+          <>
+            {allSubClassesLoading ? (
+              <p className="text-center text-xs text-tp-muted py-8">
+                Memuat daftar sub kelas...
+              </p>
+            ) : allSubClasses.length === 0 ? (
+              <div className="text-center py-12 text-tp-muted text-xs">
+                <Layers size={32} className="mx-auto text-tp-muted mb-3 opacity-50" />
+                <p className="font-semibold text-tp-text mb-1">Belum Ada Sub Kelas</p>
+                <p>
+                  Buka tab <strong>Daftar Kelas</strong>, lalu klik ikon{' '}
+                  <Layers size={12} className="inline" /> di kolom Aksi untuk mengelola sub kelas.
+                </p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse text-sm">
+                  <thead>
+                    <tr className="border-b border-tp-border bg-gray-50 text-xs text-tp-muted uppercase tracking-wider">
+                      <th className="py-3 px-4">No</th>
+                      <th className="py-3 px-4">Sub Kelas</th>
+                      <th className="py-3 px-4">Master Kelas</th>
+                      <th className="py-3 px-4">Tipe</th>
+                      <th className="py-3 px-4">Tahun Akademik</th>
+                      <th className="py-3 px-4">Kapasitas</th>
+                      <th className="py-3 px-4 text-right">Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-tp-border">
+                    {allSubClasses.map((sub, index) => (
+                      <tr key={sub.id} className="hover:bg-gray-50">
+                        <td className="py-3 px-4 text-tp-muted">{index + 1}</td>
+                        <td className="py-3 px-4">
+                          <div className="flex items-center gap-2">
+                            <span className="font-semibold text-tp-text">
+                              {sub.name}
+                            </span>
+                            {!sub.is_active && (
+                              <span className="text-[10px] px-1.5 py-0.5 bg-red-50 text-red-600 rounded">
+                                Nonaktif
+                              </span>
+                            )}
+                          </div>
+                          {sub.notes && (
+                            <p className="text-[10px] text-tp-muted italic mt-0.5">
+                              "{sub.notes}"
+                            </p>
+                          )}
+                        </td>
+                        <td className="py-3 px-4">
+                          <span className="font-medium text-tp-text">
+                            {sub.class_group_name}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4">
+                          <span className="inline-flex items-center rounded-md bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700">
+                            {sub.class_group_type}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-xs text-tp-muted">
+                          {sub.academic_year_name} - Semester {sub.semester}
+                        </td>
+                        <td className="py-3 px-4">
+                          {sub.capacity > 0 ? (
+                            <span className="inline-flex items-center gap-1 text-xs">
+                              <Users size={12} className="text-tp-muted" />
+                              {sub.capacity}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-tp-muted">-</span>
+                          )}
+                        </td>
+                        <td className="py-3 px-4">
+                          <div className="flex items-center justify-end">
+                            <button
+                              onClick={() => handleDeleteSubClass(sub.id)}
+                              className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                              title="Hapus Sub Kelas"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </>
+        )}
+
+        {/* ============================================
+            TAB: Daftar Murid
+        ============================================ */}
+        {activeTab === 'students' && (
           <div className="text-center py-12 text-tp-muted text-xs">
-            Belum ada data kelas yang terdaftar. Silakan buat master kelas baru.
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse text-sm">
-              <thead>
-                <tr className="border-b border-tp-border bg-gray-50 text-xs text-tp-muted uppercase tracking-wider">
-                  <th className="py-3 px-4">No</th>
-                  <th className="py-3 px-4">Nama Sekolah</th>
-                  <th className="py-3 px-4">Kelas</th>
-                  <th className="py-3 px-4">Tipe Kelas</th>
-                  <th className="py-3 px-4">Tahun Akademik</th>
-                  <th className="py-3 px-4 text-right">Aksi</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-tp-border">
-                {classes.map((cls, index) => (
-                  <tr key={cls.id} className="hover:bg-gray-50">
-                    <td className="py-3 px-4 text-tp-muted">{index + 1}</td>
-                    <td className="py-3 px-4 font-medium text-tp-text">{cls.school_name}</td>
-                    <td className="py-3 px-4 font-semibold text-tp-text">{cls.name}</td>
-                    <td className="py-3 px-4">
-                      <span className="inline-flex items-center rounded-md bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700">
-                        {cls.class_type}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4">
-                      {cls.academic_year_name} - Semester {cls.semester}
-                    </td>
-                    <td className="py-3 px-4 text-right flex items-center justify-end gap-2">
-                      <button
-                        onClick={() => handleDeleteClass(cls.id)}
-                        className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                        title="Hapus Kelas"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <Users size={32} className="mx-auto text-tp-muted mb-3 opacity-50" />
+            <p className="font-semibold text-tp-text mb-1">Fitur Daftar Murid</p>
+            <p>Belum diimplementasikan. Silakan cek kembali nanti.</p>
           </div>
         )}
       </div>
 
-      {/* Modal Tambah Kelas */}
+      {/* ============================================
+          Modal: Tambah Kelas (Master)
+      ============================================ */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl space-y-4 max-h-[90vh] overflow-y-auto">
@@ -374,7 +757,7 @@ export default function ClassManagementPage() {
             </div>
 
             <form onSubmit={handleCreateClass} className="space-y-4">
-              {/* --- Tahun Akademik (Field Pertama) --- */}
+              {/* Tahun Akademik */}
               <div>
                 <label className="block text-xs font-semibold text-tp-muted mb-1">
                   Tahun Akademik *
@@ -406,7 +789,7 @@ export default function ClassManagementPage() {
                 )}
               </div>
 
-              {/* --- Field Lainnya: hanya muncul jika Tahun Akademik dipilih --- */}
+              {/* Field Lainnya */}
               {academicYearId && (
                 <>
                   <div>
@@ -510,7 +893,7 @@ export default function ClassManagementPage() {
                 </>
               )}
 
-              {/* Action Buttons */}
+              {/* Actions */}
               <div className="flex justify-end gap-3 pt-2">
                 <button
                   type="button"
@@ -529,6 +912,183 @@ export default function ClassManagementPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ============================================
+          Modal: Kelola Sub Kelas (dari Master Kelas)
+      ============================================ */}
+      {isSubClassModalOpen && selectedClassForSub && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-xl space-y-4 max-h-[90vh] overflow-y-auto">
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-tp-border pb-3">
+              <div>
+                <h3 className="text-sm font-bold text-tp-text flex items-center gap-2">
+                  <Layers size={16} className="text-tp-green" />
+                  Kelola Sub Kelas
+                </h3>
+                <p className="text-[11px] text-tp-muted mt-0.5">
+                  {selectedClassForSub.name} • {selectedClassForSub.class_type} • Semester {selectedClassForSub.semester}
+                </p>
+              </div>
+              <button
+                onClick={() => setIsSubClassModalOpen(false)}
+                className="text-tp-muted hover:text-tp-text"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Inline error */}
+            {subClassError && (
+              <div className="rounded-xl border border-red-200 bg-red-50 p-3 flex items-center gap-2">
+                <X size={14} className="text-red-500 shrink-0" />
+                <span className="text-[11px] text-red-800 font-medium">{subClassError}</span>
+              </div>
+            )}
+
+            {/* Form Tambah Sub Kelas */}
+            <form
+              onSubmit={handleCreateSubClass}
+              className="space-y-3 p-4 bg-gray-50 rounded-xl border border-tp-border"
+            >
+              <h4 className="text-xs font-bold text-tp-text">
+                Tambah Sub Kelas Baru
+              </h4>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div className="md:col-span-2">
+                  <label className="block text-[10px] font-semibold text-tp-muted mb-1">
+                    Nama Sub Kelas *
+                  </label>
+                  <input
+                    type="text"
+                    value={subClassName}
+                    onChange={(e) => setSubClassName(e.target.value)}
+                    placeholder="Contoh: 7 IPA 1, 7A, IPA Unggulan"
+                    className="w-full rounded-xl border border-tp-border px-3 py-2 text-sm outline-none focus:border-tp-green bg-white"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-semibold text-tp-muted mb-1">
+                    Kapasitas
+                  </label>
+                  <input
+                    type="number"
+                    value={subClassCapacity}
+                    onChange={(e) => setSubClassCapacity(Number(e.target.value))}
+                    min={0}
+                    placeholder="0"
+                    className="w-full rounded-xl border border-tp-border px-3 py-2 text-sm outline-none focus:border-tp-green bg-white"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-semibold text-tp-muted mb-1">
+                  Catatan (opsional)
+                </label>
+                <input
+                  type="text"
+                  value={subClassNotes}
+                  onChange={(e) => setSubClassNotes(e.target.value)}
+                  placeholder="Contoh: Kelas unggulan bidang MIPA"
+                  className="w-full rounded-xl border border-tp-border px-3 py-2 text-sm outline-none focus:border-tp-green bg-white"
+                />
+              </div>
+
+              <div className="flex justify-end">
+                <button
+                  type="submit"
+                  disabled={subClassSubmitting}
+                  className="inline-flex items-center gap-2 rounded-xl bg-tp-green px-4 py-2 text-xs font-semibold text-white hover:bg-tp-green-hover disabled:opacity-50"
+                >
+                  {subClassSubmitting ? (
+                    <Loader2 size={12} className="animate-spin" />
+                  ) : (
+                    <Plus size={12} />
+                  )}
+                  {subClassSubmitting ? 'Menyimpan...' : 'Tambah Sub Kelas'}
+                </button>
+              </div>
+            </form>
+
+            {/* List Sub Kelas */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs font-bold text-tp-text">
+                  Daftar Sub Kelas ({subClasses.length})
+                </h4>
+                <button
+                  type="button"
+                  onClick={() => selectedClassForSub && fetchSubClasses(selectedClassForSub.id)}
+                  className="text-[10px] text-tp-green font-medium hover:underline"
+                >
+                  Refresh
+                </button>
+              </div>
+
+              {subClassLoading ? (
+                <div className="text-center py-8 text-tp-muted text-xs">
+                  Memuat sub kelas...
+                </div>
+              ) : subClasses.length === 0 ? (
+                <div className="text-center py-8 text-tp-muted text-xs bg-gray-50 rounded-xl">
+                  Belum ada sub kelas. Silakan tambahkan di atas.
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {subClasses.map((sub) => (
+                    <div
+                      key={sub.id}
+                      className="flex items-center justify-between p-3 border border-tp-border rounded-xl hover:bg-gray-50 transition-colors"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-semibold text-sm text-tp-text truncate">
+                            {sub.name}
+                          </span>
+                          {sub.code && (
+                            <span className="text-[10px] px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded">
+                              {sub.code}
+                            </span>
+                          )}
+                          {!sub.is_active && (
+                            <span className="text-[10px] px-1.5 py-0.5 bg-red-50 text-red-600 rounded">
+                              Nonaktif
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-3 mt-1 text-[11px] text-tp-muted flex-wrap">
+                          {sub.capacity > 0 && (
+                            <span className="inline-flex items-center gap-1">
+                              <Users size={10} />
+                              Kapasitas: {sub.capacity}
+                            </span>
+                          )}
+                          {sub.homeroom_teacher_name && (
+                            <span>Wali: {sub.homeroom_teacher_name}</span>
+                          )}
+                          {sub.notes && (
+                            <span className="italic truncate">"{sub.notes}"</span>
+                          )}
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => handleDeleteSubClass(sub.id)}
+                        className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors shrink-0"
+                        title="Hapus Sub Kelas"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
