@@ -1,7 +1,21 @@
-import { useState, useEffect} from 'react'
+import { useState, useEffect } from 'react'
 import { Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient'
 import teachpartnerIcon from '../assets/teachpartner.png'
+
+type Membership = {
+  school_id: string
+  school_name: string
+  role_in_school: string
+  is_active: boolean
+}
+
+type MainLayoutProps = {
+  session: any
+  teacherType?: 'b2c' | 'b2b' | 'hybrid'
+  schoolMemberships?: Membership[]
+}
+
 
 function IconHome() {
   return (
@@ -29,15 +43,6 @@ function IconBook() {
     </svg>
   )
 }
-
-// function IconSearch() {
-//   return (
-//     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-//       <circle cx="11" cy="11" r="7" />
-//       <path d="m20 20-3-3" />
-//     </svg>
-//   )
-// }
 
 function IconBell() {
   return (
@@ -94,7 +99,31 @@ function IconQrCode() {
   )
 }
 
-export default function MainLayout({ session }: { session: any }) {
+
+function TeacherTypeBadge({ type }: { type: 'b2c' | 'b2b' | 'hybrid' }) {
+  const styles: Record<string, string> = {
+    b2c: 'bg-slate-100 text-slate-600',
+    b2b: 'bg-blue-100 text-blue-700',
+    hybrid: 'bg-purple-100 text-purple-700',
+  }
+  const labels: Record<string, string> = {
+    b2c: 'B2C',
+    b2b: 'B2B',
+    hybrid: 'Hybrid',
+  }
+  return (
+    <span className={`rounded-md px-1.5 py-0.5 text-[10px] font-bold ${styles[type]}`}>
+      {labels[type]}
+    </span>
+  )
+}
+
+
+export default function MainLayout({ 
+  session, 
+  teacherType = 'b2c', 
+  schoolMemberships = [] 
+}: MainLayoutProps) {                                              
   const navigate = useNavigate()
   const location = useLocation()
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -114,7 +143,6 @@ export default function MainLayout({ session }: { session: any }) {
     { path: '/profile', label: 'Identitas', icon: <IconSettings /> },
   ]
 
-   // Cek session setiap kali ada perubahan
   useEffect(() => {
     const checkSession = async () => {
       const { data: { session: currentSession } } = await supabase.auth.getSession()
@@ -135,7 +163,7 @@ export default function MainLayout({ session }: { session: any }) {
     return () => subscription.unsubscribe()
   }, [navigate])
 
-    const handleLogout = async () => {
+  const handleLogout = async () => {
     try {
       setIsLoggingOut(true)
       await supabase.auth.signOut()
@@ -163,15 +191,10 @@ export default function MainLayout({ session }: { session: any }) {
         }`}
       >
         <div className="mb-9 flex items-center gap-2.5 px-2">
-          {/* <img 
-            src={teachpartnerLogo} 
-            alt="TeachPartner" 
-            className="h-[34px] w-[34px] shrink-0 object-contain rounded-full"
-          /> */}
           <img 
             src={teachpartnerIcon} 
             alt="TeachPartner" 
-            className="h-[34px] w-[34px]object-contain"
+            className="h-8 w-auto object-contain"   
           />
         </div>
 
@@ -207,6 +230,36 @@ export default function MainLayout({ session }: { session: any }) {
           })}
         </nav>
 
+        {/* ← BARU: Daftar sekolah yang diikuti */}
+        {schoolMemberships.length > 0 && (
+          <div className="mt-3 mb-3 rounded-xl border border-tp-border bg-white p-3">
+            <div className="mb-2 px-1 text-[10px] font-semibold uppercase tracking-wider text-tp-faint">
+              Sekolah Saya
+            </div>
+            <div className="flex max-h-[180px] flex-col gap-1 overflow-y-auto">
+              {schoolMemberships.map((m) => (
+                <div 
+                  key={m.school_id}
+                  className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs"
+                  title={`${m.school_name} (${m.role_in_school})`}
+                >
+                  <span 
+                    className={`h-1.5 w-1.5 shrink-0 rounded-full ${
+                      m.is_active ? 'bg-tp-green' : 'bg-slate-300'
+                    }`} 
+                  />
+                  <span className="flex-1 truncate text-tp-text">
+                    {m.school_name}
+                  </span>
+                  <span className="shrink-0 text-[10px] capitalize text-tp-faint">
+                    {m.role_in_school}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div className="mt-auto flex flex-col gap-3.5">
           <div className="relative overflow-hidden rounded-[18px] bg-gradient-to-br from-tp-green to-[#1a6b4a] p-5 text-white">
             <div className="pointer-events-none absolute -top-10 -right-8 h-[140px] w-[140px] rounded-full bg-tp-mint/20" />
@@ -221,10 +274,11 @@ export default function MainLayout({ session }: { session: any }) {
               Download
             </button>
           </div>
-             <button
+
+          <button
             type="button"
             className="flex w-full items-center gap-2.5 rounded-[10px] px-3 py-[11px] text-sm font-medium text-tp-muted transition hover:bg-rose-50 hover:text-rose-600"
-            onClick={() => setShowLogoutModal(true)} // 👈 Buka modal
+            onClick={() => setShowLogoutModal(true)}
           >
             <IconLogout />
             Keluar
@@ -235,15 +289,12 @@ export default function MainLayout({ session }: { session: any }) {
       {/* MODAL KONFIRMASI LOGOUT */}
       {showLogoutModal && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-          {/* Overlay modal */}
           <div 
             className="absolute inset-0 bg-black/50 backdrop-blur-sm"
             onClick={() => !isLoggingOut && setShowLogoutModal(false)}
           />
           
-          {/* Modal content */}
           <div className="relative w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
-            {/* Icon peringatan */}
             <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-rose-50">
               <svg 
                 className="h-8 w-8 text-rose-600" 
@@ -313,19 +364,6 @@ export default function MainLayout({ session }: { session: any }) {
             <IconMenu />
           </button>
 
-          {/* <div className="flex max-w-none flex-1 items-center gap-2.5 rounded-full border border-tp-border bg-white px-4 py-2.5 text-tp-faint lg:max-w-[420px]">
-            <IconSearch />
-            <input
-              type="search"
-              placeholder="Cari perangkat, soal, atau kelas..."
-              aria-label="Pencarian"
-              className="min-w-0 flex-1 border-0 bg-transparent text-sm text-tp-text outline-none"
-            />
-            <kbd className="hidden rounded-md border border-tp-border bg-gray-100 px-1.5 py-0.5 text-[11px] font-semibold text-tp-faint sm:inline">
-              ⌘ F
-            </kbd>
-          </div> */}
-
           <div className="ml-auto flex items-center gap-2.5">
             <button
               type="button"
@@ -346,13 +384,20 @@ export default function MainLayout({ session }: { session: any }) {
                 {initial}
               </div>
               <div className="hidden min-w-0 flex-col lg:flex">
-                <strong className="max-w-[160px] truncate text-[13px] font-bold text-tp-text">{displayName}</strong>
-                <span className="max-w-[160px] truncate text-xs text-tp-faint">{email}</span>
+                {/* ← UBAH: tambah badge tipe guru */}
+                <div className="flex items-center gap-2">
+                  <strong className="max-w-[160px] truncate text-[13px] font-bold text-tp-text">
+                    {displayName}
+                  </strong>
+                  <TeacherTypeBadge type={teacherType} />
+                </div>
+                <span className="max-w-[160px] truncate text-xs text-tp-faint">
+                  {email}
+                </span>
               </div>
             </div>
           </div>
         </header>
-
         <main className="w-full max-w-[1200px] px-4 pb-6 pt-2 sm:px-7 sm:pb-8">
           <Outlet />
         </main>

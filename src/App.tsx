@@ -32,7 +32,7 @@ import SchoolAcademicYearPage from './pages/adminschool/SchoolAcademicYearPage'
 import SchoolProfilePage from './pages/adminschool/SchoolProfilePage'
 import ClassManagementPage from './pages/adminschool/ClassManagementPage'
 import StudentManagementPage from './pages/adminschool/StudentManagementPage'
-
+import SchoolInactivePage from './pages/adminschool/SchoolInactivePage'  // ← TAMBAH
 
 import AttendanceDashboard from './pages/adminschool/attendance/AttendanceDashboard'
 import ShiftManagementPage from './pages/adminschool/attendance/ShiftManagementPage'
@@ -43,7 +43,6 @@ import AttendanceSessionPage from './pages/adminschool/attendance/AttendanceSess
 import AttendanceScannerPage from './pages/adminschool/attendance/AttendanceScannerPage'
 import AttendanceReportPage from './pages/adminschool/attendance/AttendanceReportPage'
 
-
 let lastProfileTokenFetched: string | null = null
 
 export default function App() {
@@ -53,8 +52,13 @@ export default function App() {
   const [tokenBalance, setTokenBalance] = useState(0)
   const [loading, setLoading] = useState(true)
 
+
+  const [schoolInactive, setSchoolInactive] = useState(false)
   const [adminToken, setAdminToken] = useState<string | null>(localStorage.getItem('superadmin_token'))
   const [adminName, setAdminName] = useState<string>(localStorage.getItem('superadmin_name') || '')
+
+  const [teacherType, setTeacherType] = useState<'b2c' | 'b2b' | 'hybrid'>('b2c')
+  const [schoolMemberships, setSchoolMemberships] = useState<any[]>([])
 
   const [authError, setAuthError] = useState<string | null>(null)
 
@@ -62,35 +66,6 @@ export default function App() {
 
   useEffect(() => {
     let cancelled = false
-
-    // const checkRoleAndFetchData = async (token: string) => {
-    //   if (!token) return
-    //   setCheckingRole(true) 
-    //   try {
-    //     // 1. Cek tipe role pengguna terlebih dahulu
-    //     const roleRes = await axios.get(`${API_URL}/api/auth/check-role`, {
-    //       headers: { Authorization: `Bearer ${token}` }
-    //     })
-    //     const role = roleRes.data.role
-    //     if (!cancelled) setUserRole(role)
-
-    //     // 2. Hanya ambil profil & token balance jika role-nya adalah guru (teacher)
-    //     if (role === 'teacher') {
-    //       if (token !== lastProfileTokenFetched) {
-    //         lastProfileTokenFetched = token
-    //         const res = await axios.get(`${API_URL}/api/profile`, {
-    //           headers: { Authorization: `Bearer ${token}` }
-    //         })
-    //         if (!cancelled) setTokenBalance(res.data.token_balance)
-    //       }
-    //     }
-    //   } catch (e) {
-    //     console.error('Gagal memuat data sesi:', e)
-    //     lastProfileTokenFetched = null
-    //   } finally {
-    //     setCheckingRole(false)  // ← SET FALSE
-    //   }
-    // }
 
     const checkRoleAndFetchData = async (token: string) => {
       if (!token) return
@@ -101,9 +76,19 @@ export default function App() {
           headers: { Authorization: `Bearer ${token}` }
         })
         const role = roleRes.data.role
-        if (!cancelled) setUserRole(role)
+        const isSchoolInactive = roleRes.data.school_inactive === true  
+
+        if (!cancelled) {
+          setUserRole(role)
+          setSchoolInactive(isSchoolInactive)  
+        }
 
         if (role === 'teacher') {
+          if (!cancelled) {
+            setTeacherType(roleRes.data.teacher_type || 'b2c')
+            setSchoolMemberships(roleRes.data.memberships || [])
+          }
+
           if (token !== lastProfileTokenFetched) {
             lastProfileTokenFetched = token
             const res = await axios.get(`${API_URL}/api/profile`, {
@@ -142,6 +127,7 @@ export default function App() {
         lastProfileTokenFetched = null
         setUserRole(null)
         setTokenBalance(0)
+        setSchoolInactive(false)  
       }
     })
 
@@ -212,12 +198,24 @@ export default function App() {
         {/* --- Route Admin Sekolah (Nested) --- */}
         <Route 
           path="/school-admin/dashboard" 
-          element={
-            session ? (
-              <SchoolAdminDashboard session={session} />
-            ) : (
-              <Navigate to="/" replace />
-            )
+            element={
+              !session ? (
+                <Navigate to="/" replace />
+              ) : checkingRole || userRole === null ? (
+              
+                <div className="grid min-h-screen place-items-center font-sans text-tp-muted">
+                  Memverifikasi akun...
+                </div>
+              ) : userRole === 'school_admin' && schoolInactive ? (
+          
+                <SchoolInactivePage />
+              ) : userRole !== 'school_admin' ? (
+               
+                <Navigate to="/" replace />
+              ) : (
+                
+                <SchoolAdminDashboard session={session} />
+              )
           } 
         >
           <Route index element={<SchoolDashboardOverview />} />
@@ -226,7 +224,7 @@ export default function App() {
           <Route path="classes" element={<ClassManagementPage />} />
           <Route path="students" element={<StudentManagementPage />} /> 
 
-           {/* Attendance Routes */}
+          {/* Attendance Routes */}
           <Route path="attendance" element={<AttendanceDashboard />} />
           <Route path="attendance/shifts" element={<ShiftManagementPage />} />
           <Route path="attendance/calendar" element={<CalendarManagementPage />} />
@@ -235,7 +233,6 @@ export default function App() {
           <Route path="attendance/sessions" element={<AttendanceSessionPage />} />
           <Route path="attendance/scanner/:sessionId" element={<AttendanceScannerPage />} />
           <Route path="attendance/reports" element={<AttendanceReportPage />} />
-          
         </Route>
 
         {/* --- Route Register & Publik --- */}
@@ -271,9 +268,17 @@ export default function App() {
                 Memverifikasi akun...
               </div>
             ) : userRole === 'school_admin' ? (
-              <Navigate to="/school-admin/dashboard" replace />
+              schoolInactive ? (
+                <SchoolInactivePage />
+              ) : (
+                <Navigate to="/school-admin/dashboard" replace />
+              )
             ) : (
-              <MainLayout session={session} />
+              <MainLayout 
+                session={session} 
+                teacherType={teacherType}
+                schoolMemberships={schoolMemberships}
+              />
             )
           }
         >

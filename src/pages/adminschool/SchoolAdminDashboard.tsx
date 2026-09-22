@@ -64,8 +64,14 @@ export default function SchoolAdminDashboard({ session }: { session: any }) {
         }`}
       >
         <div className="mb-9 flex items-center gap-2.5 px-2">
-          <img src={teachpartnerIcon} alt="TeachPartner" className="h-[34px] w-[34px] object-contain" />
-          <span className="font-bold text-tp-text text-sm">Panel B2B Sekolah</span>
+          <img 
+            src={teachpartnerIcon} 
+            alt="TeachPartner" 
+            className="h-8 w-auto object-contain"   // h-8 = 32px, lebar auto
+          />
+        </div>
+        <div className="mb-9 flex items-center gap-2.5 px-2">
+          <span className="font-bold text-tp-text text-sm">Panel Admin Sekolah</span>
         </div>
 
         <div className="mb-2.5 px-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-tp-faint">

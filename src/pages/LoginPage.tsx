@@ -23,26 +23,35 @@ export default function LoginPage() {
     setLoading(true)
     
     try {
-      // 1. Login standar via Supabase Auth
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({ email, password })
       if (authError) throw new Error(authError.message)
 
       const token = authData.session?.access_token
       if (!token) throw new Error('Sesi token tidak ditemukan.')
 
-      // 2. Cek role/tipe pengguna ke backend
+      // Cek role via backend
       const res = await axios.get(`${API_URL}/api/auth/check-role`, {
         headers: { Authorization: `Bearer ${token}` }
       })
 
       const role = res.data.role
+      const schoolInactive = res.data.school_inactive === true
 
-      // 3. Arahkan berdasarkan role
+      // Kalau school_admin DAN sekolah nonaktif → redirect ke "/" 
+      // (App.tsx akan render SchoolInactivePage)
+      if (role === 'school_admin' && schoolInactive) {
+        navigate('/', { replace: true })
+        return
+      }
+
+      // Kalau school_admin aktif → langsung ke dashboard
       if (role === 'school_admin') {
         navigate('/school-admin/dashboard', { replace: true })
-      } else {
-        navigate('/', { replace: true })
+        return
       }
+
+      // Teacher
+      navigate('/', { replace: true })
 
     } catch (err: any) {
       alert('Gagal login: ' + (err.response?.data?.error || err.message))

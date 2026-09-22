@@ -1,8 +1,21 @@
 import { useEffect, useState } from 'react'
 import { api } from '../../lib/axios'
 import { Button } from '@/components/ui/button'
-import { Building2, Plus, CheckCircle2, AlertCircle, ShieldAlert } from 'lucide-react'
+import {
+  Building2,
+  Plus,
+  CheckCircle2,
+  AlertCircle,
+  ShieldAlert,
+  Ban,
+  Loader2,
+  X,
+  AlertTriangle,
+} from 'lucide-react'
 
+// ============================================
+// Types
+// ============================================
 interface SchoolItem {
   id: string
   school_name: string
@@ -23,6 +36,9 @@ interface SchoolAdminItem {
   npsn: string
 }
 
+// ============================================
+// Component
+// ============================================
 export default function SuperAdminSchools() {
   const [schools, setSchools] = useState<SchoolItem[]>([])
   const [admins, setAdmins] = useState<SchoolAdminItem[]>([])
@@ -30,19 +46,29 @@ export default function SuperAdminSchools() {
   const [errorMsg, setErrorMsg] = useState('')
   const [successMsg, setSuccessMsg] = useState('')
 
-  // State Form Pendaftaran Sekolah
+  // ===== Form State: Pendaftaran Sekolah =====
   const [schoolName, setSchoolName] = useState('')
   const [npsn, setNpsn] = useState('')
   const [address, setAddress] = useState('')
+  const [jenjang, setJenjang] = useState('SMP')
 
-  // State Form Pendaftaran Admin Sekolah
+  // ===== Form State: Pendaftaran Admin =====
   const [selectedSchoolID, setSelectedSchoolID] = useState('')
   const [adminEmail, setAdminEmail] = useState('')
   const [adminPassword, setAdminPassword] = useState('')
   const [adminFullName, setAdminFullName] = useState('')
   const [adminNip, setAdminNip] = useState('')
-  const [jenjang, setJenjang] = useState('SMP')
 
+  // ===== State: Status Modal (Nonaktifkan/Aktifkan Sekolah) =====
+  const [isStatusModalOpen, setIsStatusModalOpen] = useState(false)
+  const [selectedSchool, setSelectedSchool] = useState<SchoolItem | null>(null)
+  const [statusReason, setStatusReason] = useState('')
+  const [statusSubmitting, setStatusSubmitting] = useState(false)
+  const [statusError, setStatusError] = useState('')
+
+  // ============================================
+  // Fetch Data
+  // ============================================
   const fetchData = async () => {
     try {
       setLoading(true)
@@ -51,7 +77,7 @@ export default function SuperAdminSchools() {
 
       const [resSchools, resAdmins] = await Promise.all([
         api.get('/api/superadmin/schools', { headers }),
-        api.get('/api/superadmin/school-admins', { headers })
+        api.get('/api/superadmin/school-admins', { headers }),
       ])
 
       setSchools(resSchools.data.schools || [])
@@ -69,21 +95,28 @@ export default function SuperAdminSchools() {
     fetchData()
   }, [])
 
+  // ============================================
+  // Register School
+  // ============================================
   const handleRegisterSchool = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
       setErrorMsg('')
       setSuccessMsg('')
       const token = localStorage.getItem('superadmin_token')
-      
-      const res = await api.post('/api/superadmin/schools', {
-        school_name: schoolName,
-        npsn,
-        address,
-        jenjang // Kirim data jenjang ke backend
-      }, {
-        headers: { Authorization: `Bearer ${token}` }
-      })
+
+      const res = await api.post(
+        '/api/superadmin/schools',
+        {
+          school_name: schoolName,
+          npsn,
+          address,
+          jenjang,
+        },
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      )
 
       setSuccessMsg(`Sekolah "${res.data.school_name}" berhasil didaftarkan!`)
       setSchoolName('')
@@ -96,6 +129,9 @@ export default function SuperAdminSchools() {
     }
   }
 
+  // ============================================
+  // Register Admin
+  // ============================================
   const handleRegisterAdmin = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
@@ -103,15 +139,19 @@ export default function SuperAdminSchools() {
       setSuccessMsg('')
       const token = localStorage.getItem('superadmin_token')
 
-      await api.post('/api/superadmin/school-admins', {
-        school_id: selectedSchoolID,
-        email: adminEmail,
-        password: adminPassword,
-        full_name: adminFullName,
-        nip: adminNip
-      }, {
-        headers: { Authorization: `Bearer ${token}` }
-      })
+      await api.post(
+        '/api/superadmin/school-admins',
+        {
+          school_id: selectedSchoolID,
+          email: adminEmail,
+          password: adminPassword,
+          full_name: adminFullName,
+          nip: adminNip,
+        },
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      )
 
       setSuccessMsg('Akun Admin Sekolah berhasil dibuat!')
       setSelectedSchoolID('')
@@ -125,13 +165,79 @@ export default function SuperAdminSchools() {
     }
   }
 
+  // ============================================
+  // Handler: Open Status Modal
+  // ============================================
+  const handleOpenStatusModal = (school: SchoolItem) => {
+    setSelectedSchool(school)
+    setStatusReason('')
+    setStatusError('')
+    setIsStatusModalOpen(true)
+  }
+
+  // ============================================
+  // Handler: Submit Status Change
+  // ============================================
+  const handleSubmitStatus = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!selectedSchool) return
+    if (statusReason.trim().length < 5) {
+      setStatusError('Alasan wajib diisi (minimal 5 karakter)')
+      return
+    }
+
+    setStatusSubmitting(true)
+    setStatusError('')
+
+    try {
+      const token = localStorage.getItem('superadmin_token')
+      const newStatus = !selectedSchool.is_active
+
+      const res = await api.patch(
+        `/api/superadmin/schools/${selectedSchool.id}/status`,
+        {
+          is_active: newStatus,
+          reason: statusReason.trim(),
+        },
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      )
+
+      // Bangun pesan sukses dengan detail
+      let msg = res.data?.message || 'Status sekolah berhasil diubah'
+      if (!newStatus && res.data?.auto_closed_sessions > 0) {
+        msg += ` (${res.data.auto_closed_sessions} sesi absensi ditutup otomatis)`
+      }
+
+      setSuccessMsg(msg)
+      setIsStatusModalOpen(false)
+      setSelectedSchool(null)
+      await fetchData()
+      setTimeout(() => setSuccessMsg(''), 5000)
+    } catch (err: any) {
+      setStatusError(err.response?.data?.error || 'Gagal mengubah status sekolah')
+    } finally {
+      setStatusSubmitting(false)
+    }
+  }
+
+  // ============================================
+  // Render
+  // ============================================
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div>
-        <h1 className="mb-1 text-2xl font-bold tracking-tight text-tp-text">Manajemen Sekolah B2B</h1>
-        <p className="text-sm text-tp-muted">Daftarkan institusi sekolah dan kelola akun Admin Sekolah.</p>
+        <h1 className="mb-1 text-2xl font-bold tracking-tight text-tp-text">
+          Manajemen Sekolah B2B
+        </h1>
+        <p className="text-sm text-tp-muted">
+          Daftarkan institusi sekolah dan kelola akun Admin Sekolah.
+        </p>
       </div>
 
+      {/* Alerts */}
       {errorMsg && (
         <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-600">
           <AlertCircle size={18} /> {errorMsg}
@@ -144,6 +250,7 @@ export default function SuperAdminSchools() {
         </div>
       )}
 
+      {/* Forms */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         {/* Form Pendaftaran Sekolah */}
         <div className="rounded-2xl border border-tp-border bg-white p-6 shadow-sm">
@@ -152,7 +259,9 @@ export default function SuperAdminSchools() {
           </h2>
           <form onSubmit={handleRegisterSchool} className="space-y-4">
             <div>
-              <label className="block text-xs font-semibold uppercase text-tp-muted mb-1">Jenjang Sekolah</label>
+              <label className="block text-xs font-semibold uppercase text-tp-muted mb-1">
+                Jenjang Sekolah
+              </label>
               <select
                 required
                 className="w-full rounded-xl border border-tp-border px-3.5 py-2.5 text-sm outline-none focus:border-tp-green bg-white"
@@ -166,7 +275,9 @@ export default function SuperAdminSchools() {
               </select>
             </div>
             <div>
-              <label className="block text-xs font-semibold uppercase text-tp-muted mb-1">Nama Sekolah</label>
+              <label className="block text-xs font-semibold uppercase text-tp-muted mb-1">
+                Nama Sekolah
+              </label>
               <input
                 type="text"
                 required
@@ -177,7 +288,9 @@ export default function SuperAdminSchools() {
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold uppercase text-tp-muted mb-1">NPSN</label>
+              <label className="block text-xs font-semibold uppercase text-tp-muted mb-1">
+                NPSN
+              </label>
               <input
                 type="text"
                 required
@@ -188,7 +301,9 @@ export default function SuperAdminSchools() {
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold uppercase text-tp-muted mb-1">Alamat</label>
+              <label className="block text-xs font-semibold uppercase text-tp-muted mb-1">
+                Alamat
+              </label>
               <textarea
                 className="w-full rounded-xl border border-tp-border px-3.5 py-2.5 text-sm outline-none focus:border-tp-green"
                 placeholder="Alamat lengkap sekolah"
@@ -197,7 +312,10 @@ export default function SuperAdminSchools() {
                 onChange={(e) => setAddress(e.target.value)}
               />
             </div>
-            <Button type="submit" className="w-full rounded-xl bg-tp-green text-white font-semibold py-2.5 hover:bg-tp-green-hover">
+            <Button
+              type="submit"
+              className="w-full rounded-xl bg-tp-green text-white font-semibold py-2.5 hover:bg-tp-green-hover"
+            >
               Daftarkan Sekolah
             </Button>
           </form>
@@ -210,7 +328,9 @@ export default function SuperAdminSchools() {
           </h2>
           <form onSubmit={handleRegisterAdmin} className="space-y-4">
             <div>
-              <label className="block text-xs font-semibold uppercase text-tp-muted mb-1">Pilih Sekolah</label>
+              <label className="block text-xs font-semibold uppercase text-tp-muted mb-1">
+                Pilih Sekolah
+              </label>
               <select
                 required
                 className="w-full rounded-xl border border-tp-border px-3.5 py-2.5 text-sm outline-none focus:border-tp-green bg-white"
@@ -218,14 +338,20 @@ export default function SuperAdminSchools() {
                 onChange={(e) => setSelectedSchoolID(e.target.value)}
               >
                 <option value="">-- Pilih Institusi Sekolah --</option>
-                {schools.map((s) => (
-                  <option key={s.id} value={s.id}>{s.school_name} (NPSN: {s.npsn})</option>
-                ))}
+                {schools
+                  .filter((s) => s.is_active)
+                  .map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.school_name} (NPSN: {s.npsn})
+                    </option>
+                  ))}
               </select>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-semibold uppercase text-tp-muted mb-1">Nama Lengkap Admin</label>
+                <label className="block text-xs font-semibold uppercase text-tp-muted mb-1">
+                  Nama Lengkap Admin
+                </label>
                 <input
                   type="text"
                   required
@@ -236,7 +362,9 @@ export default function SuperAdminSchools() {
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold uppercase text-tp-muted mb-1">NIP / Identitas</label>
+                <label className="block text-xs font-semibold uppercase text-tp-muted mb-1">
+                  NIP / Identitas
+                </label>
                 <input
                   type="text"
                   className="w-full rounded-xl border border-tp-border px-3.5 py-2.5 text-sm outline-none focus:border-tp-green"
@@ -248,7 +376,9 @@ export default function SuperAdminSchools() {
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-semibold uppercase text-tp-muted mb-1">Email Login</label>
+                <label className="block text-xs font-semibold uppercase text-tp-muted mb-1">
+                  Email Login
+                </label>
                 <input
                   type="email"
                   required
@@ -259,7 +389,9 @@ export default function SuperAdminSchools() {
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold uppercase text-tp-muted mb-1">Kata Sandi</label>
+                <label className="block text-xs font-semibold uppercase text-tp-muted mb-1">
+                  Kata Sandi
+                </label>
                 <input
                   type="password"
                   required
@@ -271,7 +403,10 @@ export default function SuperAdminSchools() {
                 />
               </div>
             </div>
-            <Button type="submit" className="w-full rounded-xl bg-tp-green text-white font-semibold py-2.5 hover:bg-tp-green-hover">
+            <Button
+              type="submit"
+              className="w-full rounded-xl bg-tp-green text-white font-semibold py-2.5 hover:bg-tp-green-hover"
+            >
               Buat Akun Admin
             </Button>
           </form>
@@ -280,7 +415,9 @@ export default function SuperAdminSchools() {
 
       {/* Tabel Daftar Sekolah */}
       <div className="rounded-2xl border border-tp-border bg-white p-6 shadow-sm">
-        <h2 className="mb-4 text-base font-bold text-tp-text">Daftar Sekolah Terdaftar ({schools.length})</h2>
+        <h2 className="mb-4 text-base font-bold text-tp-text">
+          Daftar Sekolah Terdaftar ({schools.length})
+        </h2>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
             <thead className="border-b border-tp-border bg-tp-bg text-xs uppercase text-tp-muted">
@@ -290,30 +427,62 @@ export default function SuperAdminSchools() {
                 <th className="px-4 py-3">Alamat</th>
                 <th className="px-4 py-3">Status</th>
                 <th className="px-4 py-3">Tanggal Dibuat</th>
+                <th className="px-4 py-3 text-right">Aksi</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-tp-border">
               {loading ? (
                 <tr>
-                  <td colSpan={5} className="px-4 py-6 text-center text-tp-muted">Memuat data sekolah...</td>
+                  <td colSpan={6} className="px-4 py-6 text-center text-tp-muted">
+                    Memuat data sekolah...
+                  </td>
                 </tr>
               ) : schools.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-4 py-6 text-center text-tp-muted">Belum ada sekolah terdaftar.</td>
+                  <td colSpan={6} className="px-4 py-6 text-center text-tp-muted">
+                    Belum ada sekolah terdaftar.
+                  </td>
                 </tr>
               ) : (
                 schools.map((s) => (
                   <tr key={s.id} className="hover:bg-tp-bg/50">
                     <td className="px-4 py-3 font-semibold text-tp-text">{s.school_name}</td>
                     <td className="px-4 py-3 text-tp-muted">{s.npsn}</td>
-                    <td className="px-4 py-3 text-tp-muted max-w-[250px] truncate">{s.address || '-'}</td>
+                    <td className="px-4 py-3 text-tp-muted max-w-[250px] truncate">
+                      {s.address || '-'}
+                    </td>
                     <td className="px-4 py-3">
-                      <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${s.is_active ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-600'}`}>
+                      <span
+                        className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                          s.is_active
+                            ? 'bg-emerald-50 text-emerald-700'
+                            : 'bg-rose-50 text-rose-600'
+                        }`}
+                      >
                         {s.is_active ? 'Aktif' : 'Non-aktif'}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-tp-muted text-xs">
-                      {new Date(s.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}
+                      {new Date(s.created_at).toLocaleDateString('id-ID', {
+                        day: '2-digit',
+                        month: 'short',
+                        year: 'numeric',
+                      })}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center justify-end">
+                        <button
+                          onClick={() => handleOpenStatusModal(s)}
+                          className={`p-2 rounded-lg transition-colors ${
+                            s.is_active
+                              ? 'text-amber-500 hover:bg-amber-50'
+                              : 'text-emerald-500 hover:bg-emerald-50'
+                          }`}
+                          title={s.is_active ? 'Nonaktifkan Sekolah' : 'Aktifkan Kembali Sekolah'}
+                        >
+                          {s.is_active ? <Ban size={14} /> : <CheckCircle2 size={14} />}
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -326,7 +495,8 @@ export default function SuperAdminSchools() {
       {/* Tabel Daftar Admin Sekolah */}
       <div className="rounded-2xl border border-tp-border bg-white p-6 shadow-sm">
         <h2 className="mb-4 text-base font-bold text-tp-text flex items-center gap-2">
-          <ShieldAlert size={18} className="text-tp-green" /> Daftar Akun Admin Sekolah ({admins.length})
+          <ShieldAlert size={18} className="text-tp-green" /> Daftar Akun Admin Sekolah (
+          {admins.length})
         </h2>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
@@ -343,11 +513,15 @@ export default function SuperAdminSchools() {
             <tbody className="divide-y divide-tp-border">
               {loading ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-6 text-center text-tp-muted">Memuat data admin...</td>
+                  <td colSpan={6} className="px-4 py-6 text-center text-tp-muted">
+                    Memuat data admin...
+                  </td>
                 </tr>
               ) : admins.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-6 text-center text-tp-muted">Belum ada akun admin sekolah yang dibuat.</td>
+                  <td colSpan={6} className="px-4 py-6 text-center text-tp-muted">
+                    Belum ada akun admin sekolah yang dibuat.
+                  </td>
                 </tr>
               ) : (
                 admins.map((a) => (
@@ -355,14 +529,27 @@ export default function SuperAdminSchools() {
                     <td className="px-4 py-3 font-semibold text-tp-text">{a.full_name}</td>
                     <td className="px-4 py-3 text-tp-muted">{a.email}</td>
                     <td className="px-4 py-3 text-tp-muted">{a.nip || '-'}</td>
-                    <td className="px-4 py-3 text-tp-text font-medium">{a.school_name} <span className="text-xs text-tp-muted">({a.npsn})</span></td>
+                    <td className="px-4 py-3 text-tp-text font-medium">
+                      {a.school_name}{' '}
+                      <span className="text-xs text-tp-muted">({a.npsn})</span>
+                    </td>
                     <td className="px-4 py-3">
-                      <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${a.is_active ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-600'}`}>
+                      <span
+                        className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                          a.is_active
+                            ? 'bg-emerald-50 text-emerald-700'
+                            : 'bg-rose-50 text-rose-600'
+                        }`}
+                      >
                         {a.is_active ? 'Aktif' : 'Non-aktif'}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-tp-muted text-xs">
-                      {new Date(a.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}
+                      {new Date(a.created_at).toLocaleDateString('id-ID', {
+                        day: '2-digit',
+                        month: 'short',
+                        year: 'numeric',
+                      })}
                     </td>
                   </tr>
                 ))
@@ -371,6 +558,149 @@ export default function SuperAdminSchools() {
           </table>
         </div>
       </div>
+
+      {/* ============================================
+          Modal: Konfirmasi Nonaktifkan/Aktifkan Sekolah
+      ============================================ */}
+      {isStatusModalOpen && selectedSchool && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl space-y-4 max-h-[90vh] overflow-y-auto">
+            {/* Header */}
+            <div className="flex items-start justify-between gap-3 border-b border-tp-border pb-3">
+              <div className="flex items-center gap-3">
+                <div
+                  className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+                    selectedSchool.is_active
+                      ? 'bg-amber-50 text-amber-600'
+                      : 'bg-emerald-50 text-emerald-600'
+                  }`}
+                >
+                  {selectedSchool.is_active ? <Ban size={20} /> : <CheckCircle2 size={20} />}
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-tp-text">
+                    {selectedSchool.is_active
+                      ? 'Nonaktifkan Sekolah'
+                      : 'Aktifkan Kembali Sekolah'}
+                  </h3>
+                  <p className="text-[11px] text-tp-muted mt-0.5">
+                    {selectedSchool.school_name} • NPSN {selectedSchool.npsn}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsStatusModalOpen(false)}
+                className="text-tp-muted hover:text-tp-text p-1 rounded-lg hover:bg-gray-100"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Error */}
+            {statusError && (
+              <div className="rounded-xl border border-red-200 bg-red-50 p-3 flex items-start gap-2">
+                <AlertCircle size={14} className="text-red-500 shrink-0 mt-0.5" />
+                <span className="text-[11px] text-red-800 font-medium">{statusError}</span>
+              </div>
+            )}
+
+            {/* Warning: Saat nonaktifkan */}
+            {selectedSchool.is_active && (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-3.5 space-y-2">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle size={14} className="text-amber-600 shrink-0" />
+                  <p className="text-[11px] font-bold text-amber-800">
+                    Perhatian sebelum menonaktifkan:
+                  </p>
+                </div>
+                <ul className="text-[11px] text-amber-800 space-y-1 ml-1">
+                  <li>• Semua admin sekolah tidak bisa login</li>
+                  <li>• Semua sesi absensi aktif akan ditutup otomatis</li>
+                  <li>• Siswa tidak bisa melakukan scan absensi</li>
+                  <li>• Data tetap tersimpan dan bisa diaktifkan kembali</li>
+                </ul>
+              </div>
+            )}
+
+            {/* Info: Saat aktifkan */}
+            {!selectedSchool.is_active && (
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3.5 space-y-2">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 size={14} className="text-emerald-600 shrink-0" />
+                  <p className="text-[11px] font-bold text-emerald-800">
+                    Setelah diaktifkan:
+                  </p>
+                </div>
+                <ul className="text-[11px] text-emerald-800 space-y-1 ml-1">
+                  <li>• Admin sekolah bisa login kembali</li>
+                  <li>• Siswa bisa melakukan scan absensi</li>
+                  <li>• Sesi baru bisa dibuat</li>
+                </ul>
+              </div>
+            )}
+
+            {/* Form */}
+            <form onSubmit={handleSubmitStatus} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-tp-muted mb-1">
+                  Alasan {selectedSchool.is_active ? 'Nonaktifkan' : 'Aktifkan'} *
+                </label>
+                <textarea
+                  value={statusReason}
+                  onChange={(e) => setStatusReason(e.target.value)}
+                  placeholder={
+                    selectedSchool.is_active
+                      ? 'Contoh: Langganan berakhir 22 Sep 2026'
+                      : 'Contoh: Langganan diperpanjang hingga Des 2026'
+                  }
+                  rows={3}
+                  className="w-full rounded-xl border border-tp-border px-3.5 py-2.5 text-sm outline-none focus:border-tp-green resize-none"
+                  required
+                  minLength={5}
+                  autoFocus
+                />
+                <p className="text-[10px] text-tp-muted mt-1">
+                  Alasan akan dicatat dalam log audit sistem
+                </p>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex justify-end gap-3 pt-3 border-t border-tp-border">
+                <button
+                  type="button"
+                  onClick={() => setIsStatusModalOpen(false)}
+                  disabled={statusSubmitting}
+                  className="rounded-xl border border-tp-border bg-white px-4 py-2.5 text-xs font-semibold text-tp-muted hover:bg-gray-50 disabled:opacity-50"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={statusSubmitting || statusReason.trim().length < 5}
+                  className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-semibold text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors ${
+                    selectedSchool.is_active
+                      ? 'bg-amber-500 hover:bg-amber-600'
+                      : 'bg-emerald-500 hover:bg-emerald-600'
+                  }`}
+                >
+                  {statusSubmitting ? (
+                    <Loader2 size={14} className="animate-spin" />
+                  ) : selectedSchool.is_active ? (
+                    <Ban size={14} />
+                  ) : (
+                    <CheckCircle2 size={14} />
+                  )}
+                  {statusSubmitting
+                    ? 'Memproses...'
+                    : selectedSchool.is_active
+                    ? 'Nonaktifkan Sekolah'
+                    : 'Aktifkan Sekolah'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
