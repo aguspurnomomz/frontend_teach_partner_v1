@@ -15,14 +15,14 @@ export default function SchoolAdminDashboard({ session }: { session: any }) {
   const displayName = email.split('@')[0] || 'Admin'
   const initial = (email.charAt(0) || 'A').toUpperCase()
 
-  // Menu Sidebar Khusus Admin Sekolah
+ 
   const menuItems = [
     { path: '/school-admin/dashboard', label: 'Ringkasan', icon: <LayoutDashboard size={18} /> },
-    { path: '/school-admin/dashboard/school', label: 'Sekolah', icon: <Building2 size={18} /> },
+    { path: '/school-admin/dashboard/school', label: 'Data Sekolah', icon: <Building2 size={18} /> },
     { path: '/school-admin/dashboard/academic-years', label: 'Tahun Akademik', icon: <Calendar size={18} /> },
-    { path: '/school-admin/dashboard/classes', label: 'Kurikulum & Kelas', icon: <Users size={18} /> },
-    { path: '/school-admin/dashboard/students', label: 'Daftar Murid', icon: <GraduationCap size={18} /> },
-    { path: '/school-admin/dashboard/attendance', label: 'Absensi', icon: <ClipboardCheck size={18} /> },
+    { path: '/school-admin/dashboard/classes', label: 'Kelola Kelas', icon: <Users size={18} /> },
+    { path: '/school-admin/dashboard/students', label: 'Kelola Siswa', icon: <GraduationCap size={18} /> },
+    { path: '/school-admin/dashboard/attendance', label: 'Kelola Absensi', icon: <ClipboardCheck size={18} /> },
   ]
 
   useEffect(() => {

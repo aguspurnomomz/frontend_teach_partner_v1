@@ -93,35 +93,35 @@ export default function AttendanceDashboard() {
     {
       icon: <QrCode size={20} />,
       label: 'QR Code Siswa',
-      desc: 'Generate & print kartu QR',
+      desc: 'Generate & print kartu absensi',
       color: 'bg-blue-50 text-blue-700 border-blue-200',
       path: '/school-admin/dashboard/attendance/qr-codes',
     },
     {
       icon: <Clock size={20} />,
       label: 'Shift Absensi',
-      desc: 'Kelola shift pagi/siang',
+      desc: 'Kelola shift absensi',
       color: 'bg-purple-50 text-purple-700 border-purple-200',
       path: '/school-admin/dashboard/attendance/shifts',
     },
     {
       icon: <Calendar size={20} />,
       label: 'Kalender Akademik',
-      desc: 'Atur hari libur & sekolah',
+      desc: 'Atur hari libur & kegiatan sekolah',
       color: 'bg-amber-50 text-amber-700 border-amber-200',
       path: '/school-admin/dashboard/attendance/calendar',
     },
     {
       icon: <Layers size={20} />,
       label: 'Assign Shift',
-      desc: 'Mapping kelas ke shift',
+      desc: 'Mapping kelas ke dalam pengaturan shift',
       color: 'bg-pink-50 text-pink-700 border-pink-200',
       path: '/school-admin/dashboard/attendance/assignments',
     },
     {
       icon: <BarChart3 size={20} />,
       label: 'Rekap Absensi',
-      desc: 'Statistik & laporan',
+      desc: 'Statistik & laporan Absensi',
       color: 'bg-cyan-50 text-cyan-700 border-cyan-200',
       path: '/school-admin/dashboard/attendance/reports',
     },
@@ -212,7 +212,7 @@ export default function AttendanceDashboard() {
             onClick={fetchData}
             className="text-[10px] text-tp-green font-medium hover:underline"
           >
-            Refresh
+            Muat Ulang
           </button>
         </div>
 

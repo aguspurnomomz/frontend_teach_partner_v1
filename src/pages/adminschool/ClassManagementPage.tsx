@@ -12,9 +12,7 @@ import {
 import { supabase } from '../../lib/supabaseClient'
 import axios from 'axios'
 
-// ============================================
-// Types
-// ============================================
+
 interface ClassItem {
   id: string
   school_name: string
@@ -79,9 +77,7 @@ interface SchoolProfile {
 type Jenjang = 'SD' | 'SMP' | 'SMA' | 'SMK'
 type TabType = 'classes' | 'sub-classes' | 'students'
 
-// ============================================
-// Constants
-// ============================================
+
 const CLASS_OPTIONS: Record<string, string[]> = {
   SD: ['KELAS 1', 'KELAS 2', 'KELAS 3', 'KELAS 4', 'KELAS 5', 'KELAS 6'],
   SMP: ['KELAS 7', 'KELAS 8', 'KELAS 9'],
@@ -107,14 +103,11 @@ const getDefaultLevel = (jenjang: Jenjang): string => {
   }
 }
 
-// ============================================
-// Component
-// ============================================
+
 export default function ClassManagementPage() {
-  // ===== Data states =====
   const [classes, setClasses] = useState<ClassItem[]>([])
   const [academicYears, setAcademicYears] = useState<AcademicYear[]>([])
-  const [schoolJenjang, setSchoolJenjang] = useState<Jenjang>('SMP')
+  const [schoolJenjang, setSchoolJenjang] = useState<Jenjang>("SMA")
 
   // ===== UI states =====
   const [loading, setLoading] = useState(true)
@@ -123,7 +116,6 @@ export default function ClassManagementPage() {
   const [errorMessage, setErrorMessage] = useState('')
   const [activeTab, setActiveTab] = useState<TabType>('classes')
 
-  // ===== Form state: Create Class =====
   const [name, setName] = useState('')
   const [isCustomName, setIsCustomName] = useState(false)
   const [level, setLevel] = useState('7')
@@ -132,36 +124,29 @@ export default function ClassManagementPage() {
   const [academicYearId, setAcademicYearId] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
-  // ===== State: Sub Class Modal (per master kelas) =====
   const [isSubClassModalOpen, setIsSubClassModalOpen] = useState(false)
   const [selectedClassForSub, setSelectedClassForSub] = useState<ClassItem | null>(null)
   const [subClasses, setSubClasses] = useState<SubClass[]>([])
   const [subClassLoading, setSubClassLoading] = useState(false)
   const [subClassError, setSubClassError] = useState('')
 
-  // ===== Form state: Create Sub Class =====
   const [subClassName, setSubClassName] = useState('')
   const [subClassCapacity, setSubClassCapacity] = useState(0)
   const [subClassNotes, setSubClassNotes] = useState('')
   const [subClassSubmitting, setSubClassSubmitting] = useState(false)
 
-  // ===== State: All Sub Classes (untuk tab) =====
   const [allSubClasses, setAllSubClasses] = useState<SubClassWithClass[]>([])
   const [allSubClassesLoading, setAllSubClassesLoading] = useState(false)
 
   const API_URL = import.meta.env.VITE_API_URL as string
 
-  // ============================================
-  // Auth
-  // ============================================
+
   const getAuthToken = async (): Promise<string | null> => {
     const { data: { session } } = await supabase.auth.getSession()
     return session?.access_token ?? null
   }
 
-  // ============================================
-  // Notifications
-  // ============================================
+
   const showSuccess = (msg: string) => {
     setSuccessMessage(msg)
     setErrorMessage('')
@@ -174,9 +159,7 @@ export default function ClassManagementPage() {
     setTimeout(() => setErrorMessage(''), 5000)
   }
 
-  // ============================================
-  // Fetch Data
-  // ============================================
+
   const fetchData = useCallback(async () => {
     setLoading(true)
     setErrorMessage('')
@@ -196,7 +179,7 @@ export default function ClassManagementPage() {
         axios.get(`${API_URL}/api/school-admin/profile`, { headers }),
       ])
 
-      // --- Classes ---
+      // kelas
       if (classRes.status === 'fulfilled') {
         setClasses(classRes.value.data?.classes ?? [])
       } else {
@@ -204,7 +187,7 @@ export default function ClassManagementPage() {
         setClasses([])
       }
 
-      // --- Academic Years ---
+      // tahun akademik
       if (yearRes.status === 'fulfilled') {
         const raw = yearRes.value.data?.academic_years
         const parsed: AcademicYear[] = Array.isArray(raw) ? raw : []
@@ -215,11 +198,11 @@ export default function ClassManagementPage() {
         showError('Gagal memuat data tahun akademik.')
       }
 
-      // --- School Profile ---
-      let jenjang: Jenjang = 'SMP'
+      // profil sekolah
+      let jenjang: Jenjang = 'SD'
       if (profileRes.status === 'fulfilled') {
         const school: SchoolProfile | undefined = profileRes.value.data?.school
-        jenjang = (school?.jenjang as Jenjang) || 'SMP'
+        jenjang = (school?.jenjang as Jenjang) || 'SD'
       } else {
         console.error('[Profile] Gagal fetch:', profileRes.reason)
       }
@@ -239,17 +222,12 @@ export default function ClassManagementPage() {
     fetchData()
   }, [fetchData])
 
-  // Auto fetch all sub classes saat tab aktif
   useEffect(() => {
     if (activeTab === 'sub-classes') {
       fetchAllSubClasses()
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab])
 
-  // ============================================
-  // CLASS ACTIONS
-  // ============================================
   const handleCreateClass = async (e: React.FormEvent) => {
     e.preventDefault()
 
@@ -299,7 +277,7 @@ export default function ClassManagementPage() {
   const handleDeleteClass = async (id: string) => {
     if (
       !confirm(
-        'Apakah Anda yakin ingin menghapus kelas ini? Semua sub kelas di dalamnya juga akan terhapus.'
+        'Apakah Anda yakin ingin menghapus kelas ini? Semua sub kelas di dalamnya juga akan ikut terhapus.'
       )
     )
       return
@@ -336,9 +314,6 @@ export default function ClassManagementPage() {
     setIsModalOpen(true)
   }
 
-  // ============================================
-  // SUB CLASS ACTIONS
-  // ============================================
   const fetchSubClasses = async (classGroupId: string) => {
     setSubClassLoading(true)
     setSubClassError('')
@@ -465,9 +440,6 @@ export default function ClassManagementPage() {
     }
   }
 
-  // ============================================
-  // Helpers
-  // ============================================
   const renderClassOptions = () => {
     const options = CLASS_OPTIONS[schoolJenjang] ?? CLASS_OPTIONS.SMP
     return options.map((opt) => (
@@ -475,9 +447,7 @@ export default function ClassManagementPage() {
     ))
   }
 
-  // ============================================
-  // Render
-  // ============================================
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -486,7 +456,7 @@ export default function ClassManagementPage() {
           Kelola Kelas ({schoolJenjang})
         </h1>
         <p className="text-xs text-tp-muted">
-          Manajemen master tingkat kelas dan struktur rombongan belajar institusi.
+          Manajemen kelas dan struktur rombongan belajar berdasarkan jenjang.
         </p>
       </div>
 
@@ -560,14 +530,11 @@ export default function ClassManagementPage() {
                 size={14}
                 className={allSubClassesLoading ? 'animate-spin' : ''}
               />
-              Refresh
+              Muat Ulang
             </Button>
           )}
         </div>
 
-        {/* ============================================
-            TAB: Daftar Kelas
-        ============================================ */}
         {activeTab === 'classes' && (
           <>
             {loading ? (
@@ -1027,7 +994,7 @@ export default function ClassManagementPage() {
                   onClick={() => selectedClassForSub && fetchSubClasses(selectedClassForSub.id)}
                   className="text-[10px] text-tp-green font-medium hover:underline"
                 >
-                  Refresh
+                  Muat Ulang
                 </button>
               </div>
 

@@ -15,9 +15,7 @@ import {
 import { supabase } from '../../lib/supabaseClient'
 import axios from 'axios'
 
-// ============================================
-// Types
-// ============================================
+
 interface Student {
   id: string
   full_name: string
@@ -50,23 +48,18 @@ interface StudentStat {
   student_count: number
 }
 
-// ============================================
-// Component
-// ============================================
+
 export default function StudentManagementPage() {
-  // ===== Data states =====
   const [students, setStudents] = useState<Student[]>([])
   const [subClassOptions, setSubClassOptions] = useState<SubClassOption[]>([])
   const [stats, setStats] = useState<StudentStat[]>([])
 
-  // ===== UI states =====
   const [loading, setLoading] = useState(true)
   const [successMessage, setSuccessMessage] = useState('')
   const [errorMessage, setErrorMessage] = useState('')
   const [filterSubClassId, setFilterSubClassId] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
 
-  // ===== Modal: Add/Edit Student =====
   const [isStudentModalOpen, setIsStudentModalOpen] = useState(false)
   const [editingStudent, setEditingStudent] = useState<Student | null>(null)
   const [formFullName, setFormFullName] = useState('')
@@ -76,7 +69,6 @@ export default function StudentManagementPage() {
   const [formSubmitting, setFormSubmitting] = useState(false)
   const [formError, setFormError] = useState('')
 
-  // ===== Modal: Move Student =====
   const [isMoveModalOpen, setIsMoveModalOpen] = useState(false)
   const [movingStudent, setMovingStudent] = useState<Student | null>(null)
   const [targetSubClassId, setTargetSubClassId] = useState('')
@@ -84,17 +76,11 @@ export default function StudentManagementPage() {
 
   const API_URL = import.meta.env.VITE_API_URL as string
 
-  // ============================================
-  // Auth
-  // ============================================
   const getAuthToken = async (): Promise<string | null> => {
     const { data: { session } } = await supabase.auth.getSession()
     return session?.access_token ?? null
   }
 
-  // ============================================
-  // Notifications
-  // ============================================
   const showSuccess = (msg: string) => {
     setSuccessMessage(msg)
     setErrorMessage('')
@@ -107,9 +93,7 @@ export default function StudentManagementPage() {
     setTimeout(() => setErrorMessage(''), 5000)
   }
 
-  // ============================================
-  // Fetch: All Sub Classes (untuk dropdown)
-  // ============================================
+
   const fetchSubClassOptions = useCallback(async () => {
     try {
       const token = await getAuthToken()
@@ -137,9 +121,7 @@ export default function StudentManagementPage() {
     }
   }, [API_URL])
 
-  // ============================================
-  // Fetch: Students
-  // ============================================
+
   const fetchStudents = useCallback(async () => {
     setLoading(true)
     try {
@@ -166,9 +148,7 @@ export default function StudentManagementPage() {
     }
   }, [API_URL, filterSubClassId])
 
-  // ============================================
-  // Fetch: Stats
-  // ============================================
+
   const fetchStats = useCallback(async () => {
     try {
       const token = await getAuthToken()
@@ -185,9 +165,7 @@ export default function StudentManagementPage() {
     }
   }, [API_URL])
 
-  // ============================================
-  // Effects
-  // ============================================
+
   useEffect(() => {
     fetchSubClassOptions()
     fetchStats()
@@ -197,9 +175,7 @@ export default function StudentManagementPage() {
     fetchStudents()
   }, [fetchStudents])
 
-  // ============================================
-  // Handlers: Open Modal
-  // ============================================
+  
   const handleOpenAddModal = () => {
     setEditingStudent(null)
     setFormFullName('')
@@ -226,9 +202,7 @@ export default function StudentManagementPage() {
     setIsMoveModalOpen(true)
   }
 
-  // ============================================
-  // Submit: Create / Update Student
-  // ============================================
+  
   const handleSubmitStudent = async (e: React.FormEvent) => {
     e.preventDefault()
 
@@ -289,9 +263,7 @@ export default function StudentManagementPage() {
     }
   }
 
-  // ============================================
-  // Submit: Move Student
-  // ============================================
+
   const handleSubmitMove = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!movingStudent || !targetSubClassId) return
@@ -323,9 +295,7 @@ export default function StudentManagementPage() {
     }
   }
 
-  // ============================================
-  // Handler: Delete
-  // ============================================
+
   const handleDeleteStudent = async (id: string) => {
     if (!confirm('Yakin ingin menghapus murid ini?')) return
 
@@ -345,9 +315,7 @@ export default function StudentManagementPage() {
     }
   }
 
-  // ============================================
-  // Derived: Filtered students (search + filter)
-  // ============================================
+
   const filteredStudents = students.filter((s) => {
     if (!searchQuery.trim()) return true
     const q = searchQuery.toLowerCase()
@@ -358,9 +326,7 @@ export default function StudentManagementPage() {
     )
   })
 
-  // ============================================
-  // Render
-  // ============================================
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -487,34 +453,34 @@ export default function StudentManagementPage() {
             className="inline-flex items-center gap-2 rounded-xl bg-tp-green px-4 py-2.5 text-xs font-semibold text-white hover:bg-tp-green-hover disabled:opacity-50"
           >
             <Plus size={16} />
-            Tambah Murid
+            Tambah Siswa
           </Button>
         </div>
 
         {/* Empty State for No Sub Class */}
         {subClassOptions.length === 0 && !loading && (
           <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-900 text-xs">
-            <p className="font-semibold mb-1">⚠️ Belum ada Sub Kelas</p>
+            <p className="font-semibold mb-1">Belum ada Sub Kelas</p>
             <p>
               Anda harus membuat sub kelas terlebih dahulu di halaman{' '}
               <strong>Kelola Kelas → Daftar Kelas → Kelola Sub Kelas</strong> sebelum
-              menambahkan murid.
+              menambahkan siswa.
             </p>
           </div>
         )}
 
         {/* Table */}
         {loading ? (
-          <p className="text-center text-xs text-tp-muted py-8">Memuat data murid...</p>
+          <p className="text-center text-xs text-tp-muted py-8">Memuat data siswa...</p>
         ) : filteredStudents.length === 0 ? (
           <div className="text-center py-12 text-tp-muted text-xs">
             <Users size={32} className="mx-auto mb-3 opacity-50" />
             <p className="font-semibold text-tp-text mb-1">
-              {students.length === 0 ? 'Belum Ada Murid' : 'Tidak Ada Hasil'}
+              {students.length === 0 ? 'Belum Ada Siswa' : 'Tidak Ada Data'}
             </p>
             <p>
               {students.length === 0
-                ? 'Klik tombol "Tambah Murid" untuk mendistribusikan siswa ke sub kelas.'
+                ? 'Klik tombol "Tambah Siswa" untuk mendistribusikan siswa ke sub kelas.'
                 : 'Coba ubah kata kunci pencarian atau filter.'}
             </p>
           </div>
@@ -522,14 +488,14 @@ export default function StudentManagementPage() {
           <>
             <div className="text-[11px] text-tp-muted">
               Menampilkan <strong>{filteredStudents.length}</strong> dari{' '}
-              <strong>{students.length}</strong> murid
+              <strong>{students.length}</strong> siswa
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse text-sm">
                 <thead>
                   <tr className="border-b border-tp-border bg-gray-50 text-xs text-tp-muted uppercase tracking-wider">
                     <th className="py-3 px-4">No</th>
-                    <th className="py-3 px-4">Nama Murid</th>
+                    <th className="py-3 px-4">Nama Siswa</th>
                     <th className="py-3 px-4">NISN</th>
                     <th className="py-3 px-4">No. Siswa</th>
                     <th className="py-3 px-4">Sub Kelas</th>
@@ -606,7 +572,7 @@ export default function StudentManagementPage() {
           <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-tp-border pb-3">
               <h3 className="text-sm font-bold text-tp-text">
-                {editingStudent ? 'Edit Data Murid' : 'Tambah Murid Baru'}
+                {editingStudent ? 'Edit Data Siswa' : 'Tambah Siswa Baru'}
               </h3>
               <button
                 onClick={() => setIsStudentModalOpen(false)}
@@ -634,7 +600,7 @@ export default function StudentManagementPage() {
                   type="text"
                   value={formFullName}
                   onChange={(e) => setFormFullName(e.target.value)}
-                  placeholder="Contoh: Ahmad Fauzan"
+                  placeholder="Contoh: Nama Siswa"
                   className="w-full rounded-xl border border-tp-border px-3.5 py-2.5 text-sm outline-none focus:border-tp-green"
                   required
                   autoFocus
@@ -663,7 +629,7 @@ export default function StudentManagementPage() {
                     type="text"
                     value={formStudentNumber}
                     onChange={(e) => setFormStudentNumber(e.target.value)}
-                    placeholder="Nomor induk"
+                    placeholder="Nomor absen (opsional)"
                     className="w-full rounded-xl border border-tp-border px-3.5 py-2.5 text-sm outline-none focus:border-tp-green"
                   />
                 </div>
@@ -715,8 +681,8 @@ export default function StudentManagementPage() {
                   {formSubmitting
                     ? 'Menyimpan...'
                     : editingStudent
-                    ? 'Update Murid'
-                    : 'Simpan Murid'}
+                    ? 'Update Siswa'
+                    : 'Simpan Siswa'}
                 </button>
               </div>
             </form>

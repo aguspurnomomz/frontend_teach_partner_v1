@@ -86,7 +86,7 @@ export default function AttendanceReportPage() {
 
       setSessions(all)
 
-      // Auto select first session if none selected
+
       if (!selectedSessionId && all.length > 0) {
         setSelectedSessionId(all[0].id)
       }

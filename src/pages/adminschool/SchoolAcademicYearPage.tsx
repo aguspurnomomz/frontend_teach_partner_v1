@@ -108,7 +108,7 @@ export default function SchoolAcademicYearPage() {
         <AlertCircle size={20} className="text-blue-600 shrink-0 mt-0.5" />
         <div className="text-xs leading-relaxed">
           <p className="font-semibold mb-0.5">Catatan Penting Pengaturan Akademik</p>
-          Tahun akademik yang berstatus <strong className="text-blue-700">Aktif</strong> akan menjadi acuan utama bagi seluruh rekapitulasi nilai ujian, kehadiran, dan presensi guru/siswa di sekolah Anda.
+          Tahun akademik yang berstatus <strong className="text-blue-700">Aktif</strong> akan menjadi acuan utama bagi seluruh aktifitas di sekolah Anda.
         </div>
       </div>
 
@@ -135,7 +135,7 @@ export default function SchoolAcademicYearPage() {
               ) : academicYears.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="px-6 py-8 text-center text-sm text-tp-muted">
-                    Belum ada data tahun akademik di database. Silakan tambahkan baru.
+                    Belum ada data tahun akademik yang dibuat. Silakan tambahkan tahun akademik.
                   </td>
                 </tr>
               ) : (

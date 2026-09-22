@@ -6,9 +6,9 @@ export default function SchoolDashboardOverview() {
       <div className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-5 text-emerald-900 flex items-start gap-3">
         <AlertCircle size={20} className="text-tp-green shrink-0 mt-0.5" />
         <div className="text-sm">
-          <p className="font-semibold mb-0.5">Selamat datang di Panel Kontrol B2B Sekolah</p>
+          <p className="font-semibold mb-0.5">Selamat datang di Panel Admin Sekolah</p>
           <p className="text-emerald-700 text-xs leading-relaxed">
-            Gunakan menu di sidebar kiri untuk mengelola tahun akademik, memantau data guru, dan operasional sekolah Anda.
+            Kelola tahun akademik, jenjang dan kehadiran.
           </p>
         </div>
       </div>
