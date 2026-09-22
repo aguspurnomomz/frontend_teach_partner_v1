@@ -142,7 +142,7 @@ export default function SuperAdminDashboard({ adminName, onLogout }: SuperAdminD
         </div>
 
         <div className="mb-2.5 px-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-tp-faint">
-          Menu
+          Menu Superadmin
         </div>
         <nav className="flex flex-1 flex-col gap-1">
           {menuItems.map((item) => {
