@@ -140,80 +140,149 @@ export default function QrCodeManagementPage() {
     }
   }
 
+
   const handlePrint = () => {
-    const printWindow = window.open('', '_blank')
-    if (!printWindow) return
-
-    const htmlContent = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>Kartu QR Siswa</title>
-        <style>
-          * { margin: 0; padding: 0; box-sizing: border-box; }
-          body { font-family: Arial, sans-serif; background: #fff; }
-          .page { padding: 20px; }
-          .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
-          .card {
-            border: 2px dashed #ccc;
-            border-radius: 12px;
-            padding: 20px;
-            page-break-inside: avoid;
-            text-align: center;
-          }
-          .school-name { font-size: 14px; font-weight: bold; color: #059669; margin-bottom: 12px; }
-          .qr-box { margin: 12px auto; width: 180px; height: 180px; }
-          .student-name { font-size: 16px; font-weight: bold; margin-top: 12px; }
-          .student-info { font-size: 11px; color: #666; margin-top: 4px; }
-          .footer { font-size: 9px; color: #999; margin-top: 12px; font-style: italic; }
-          @media print {
-            @page { size: A4; margin: 10mm; }
-          }
-        </style>
-      </head>
-      <body>
-        <div class="page">
-          <div class="grid">
-            ${students
-              .filter((s) => s.has_qr)
-              .map(
-                (s) => `
-              <div class="card">
-                <div class="school-name">SMA CITRA CEMARA</div>
-                <div class="qr-box" id="qr-${s.id}"></div>
-                <div class="student-name">${s.full_name}</div>
-                <div class="student-info">NISN: ${s.nisn || '-'}</div>
-                <div class="student-info">${s.class_group_name} - ${s.sub_class_name}</div>
-                <div class="footer">Kartu ini untuk absensi digital. Jangan dibagikan.</div>
-              </div>
-            `
-              )
-              .join('')}
-          </div>
-        </div>
-        <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
-        <script>
-          ${students
-            .filter((s) => s.has_qr)
-            .map(
-              (s) => `
-            QRCode.toCanvas('${s.qr_token}', function(err, canvas) {
-              if (!err) {
-                document.getElementById('qr-${s.id}').appendChild(canvas);
-              }
-            }, { width: 180 });
-          `
-            )
-            .join('')}
-          setTimeout(() => window.print(), 800);
-        </script>
-      </body>
-      </html>
-    `
-
-    printWindow.document.write(htmlContent)
-    printWindow.document.close()
+  const studentsWithQR = students.filter((s) => s.has_qr && s.qr_token)
+  
+  if (studentsWithQR.length === 0) {
+    alert('Belum ada QR untuk di-print')
+    return
   }
+
+  // Buka window baru
+  const printWindow = window.open('', '_blank')
+  if (!printWindow) {
+    alert('Popup diblokir. Mohon izinkan popup untuk situs ini.')
+    return
+  }
+
+  // Generate semua QR code sebagai SVG string di React side
+  // Kita render ke DOM tersembunyi dulu, ambil outerHTML-nya
+  const tempDiv = document.createElement('div')
+  tempDiv.style.position = 'absolute'
+  tempDiv.style.left = '-9999px'
+  document.body.appendChild(tempDiv)
+
+  // Import renderToStaticMarkup dari react-dom/server? 
+  // Alternatif lebih simpel: pakai API `qrcode` (canvas) yang sudah tersedia via CDN
+  // Tapi karena CDN kadang lambat, kita render sendiri pake qrcode.react di dalam tempDiv
+
+  // Cara paling reliable: gunakan qrcode library yang di-import langsung di bundler
+  // Install: npm install qrcode
+  // import QRCode from 'qrcode'
+  
+  // Solusi cepat tanpa install baru: pakai data URL dari canvas yang kita generate manual
+  // Kita pakai library kecil untuk generate SVG
+
+  // ✅ CARA PALING SIMPEL: render QR di window baru pakai qrcode.react
+  // dengan mengirim data React element sebagai HTML
+
+  const htmlContent = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="UTF-8">
+      <title>Kartu QR Siswa</title>
+      <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; background: #fff; padding: 20px; }
+        .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
+        .card {
+          border: 2px dashed #ccc;
+          border-radius: 12px;
+          padding: 20px;
+          page-break-inside: avoid;
+          text-align: center;
+          min-height: 320px;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+        }
+        .school-name { 
+          font-size: 14px; 
+          font-weight: bold; 
+          color: #059669; 
+          margin-bottom: 12px;
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
+        }
+        .qr-box { 
+          margin: 12px auto; 
+          width: 180px; 
+          height: 180px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+        .qr-box img { width: 180px; height: 180px; }
+        .student-name { 
+          font-size: 16px; 
+          font-weight: bold; 
+          margin-top: 12px;
+          color: #111;
+        }
+        .student-info { 
+          font-size: 11px; 
+          color: #666; 
+          margin-top: 4px;
+        }
+        .footer { 
+          font-size: 9px; 
+          color: #999; 
+          margin-top: 12px; 
+          font-style: italic;
+        }
+        @media print {
+          @page { size: A4; margin: 10mm; }
+          body { padding: 0; }
+          .card { 
+            box-shadow: none;
+            border-color: #ddd;
+          }
+        }
+      </style>
+    </head>
+    <body>
+      <div class="grid">
+        ${studentsWithQR
+          .map(
+            (s) => `
+          <div class="card">
+            <div class="school-name">SMA CITRA CEMARA</div>
+            <div class="qr-box">
+              <img 
+                src="https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(s.qr_token || '')}&margin=0" 
+                alt="QR ${s.full_name}"
+                crossorigin="anonymous"
+              />
+            </div>
+            <div class="student-name">${s.full_name}</div>
+            <div class="student-info">NISN: ${s.nisn || '-'}</div>
+            <div class="student-info">${s.class_group_name} - ${s.sub_class_name}</div>
+            <div class="footer">Kartu ini untuk absensi digital. Jangan dibagikan.</div>
+          </div>
+        `
+          )
+          .join('')}
+      </div>
+    </body>
+    </html>
+  `
+
+  printWindow.document.open()
+  printWindow.document.write(htmlContent)
+  printWindow.document.close()
+
+  // Tunggu gambar QR selesai load, baru print
+  printWindow.onload = () => {
+    // Delay sedikit biar semua gambar di-load
+    setTimeout(() => {
+      printWindow.focus()
+      printWindow.print()
+    }, 500)
+  }
+}
 
   const filteredStudents = students
 

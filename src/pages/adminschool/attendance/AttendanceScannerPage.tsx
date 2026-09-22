@@ -64,17 +64,15 @@ export default function AttendanceScannerPage() {
   const scannerRef = useRef<Html5Qrcode | null>(null)
   const processingRef = useRef<boolean>(false)
   const sessionIdRef = useRef<string | null>(null)
+  const restartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Debounce / anti-loop refs
   const lastScanTimeRef = useRef<number>(0)
   const lastScannedTokenRef = useRef<string>('')
-  const lastSeenTokenRef = useRef<string>('')       // token yang sedang terlihat di frame
-  const lastSeenTimeRef = useRef<number>(0)         // kapan terakhir token itu terlihat
+  const lastSeenTokenRef = useRef<string>('')
+  const lastSeenTimeRef = useRef<number>(0)
 
   const soundEnabledRef = useRef<boolean>(true)
-
-  // ✅ handleScanRef — selalu pointing ke callback terbaru, biar html5-qrcode
-  // tidak re-register callback setiap render
   const handleScanRef = useRef<(text: string) => void>(() => {})
 
   const API_URL = import.meta.env.VITE_API_URL as string
@@ -93,7 +91,7 @@ export default function AttendanceScannerPage() {
   }
 
   // ============================================
-  // Sound Effects (Web Audio API)
+  // Sound Effects
   // ============================================
   const playBeep = useCallback((type: 'success' | 'duplicate' | 'error') => {
     if (!soundEnabledRef.current) return
@@ -101,34 +99,22 @@ export default function AttendanceScannerPage() {
       const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)()
       const oscillator = audioCtx.createOscillator()
       const gainNode = audioCtx.createGain()
-
       oscillator.connect(gainNode)
       gainNode.connect(audioCtx.destination)
 
       let freq = 800
       let duration = 0.15
-
-      if (type === 'success') {
-        freq = 1000
-        duration = 0.12
-      } else if (type === 'duplicate') {
-        freq = 600
-        duration = 0.2
-      } else {
-        freq = 300
-        duration = 0.4
-      }
+      if (type === 'success') { freq = 1000; duration = 0.12 }
+      else if (type === 'duplicate') { freq = 600; duration = 0.2 }
+      else { freq = 300; duration = 0.4 }
 
       oscillator.frequency.value = freq
       oscillator.type = 'sine'
       gainNode.gain.setValueAtTime(0.3, audioCtx.currentTime)
       gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration)
-
       oscillator.start(audioCtx.currentTime)
       oscillator.stop(audioCtx.currentTime + duration)
-    } catch {
-      // Silent fail
-    }
+    } catch {}
   }, [])
 
   // ============================================
@@ -169,7 +155,6 @@ export default function AttendanceScannerPage() {
     try {
       const token = await getAuthToken()
       if (!token) return
-
       const res = await axios.get(
         `${API_URL}/api/school-admin/attendance/sessions/${sessionId}`,
         { headers: { Authorization: `Bearer ${token}` } }
@@ -188,7 +173,35 @@ export default function AttendanceScannerPage() {
   }, [fetchSession, sessionId])
 
   // ============================================
-  // Handle QR Scan (dengan 3 guard)
+  // ✅ Restart Scanner (fix blank hitam)
+  // ============================================
+  const restartScanner = useCallback(async () => {
+    if (restartTimerRef.current) {
+      clearTimeout(restartTimerRef.current)
+    }
+
+    restartTimerRef.current = setTimeout(async () => {
+      if (!scannerRef.current) return
+
+      try {
+        const state = scannerRef.current.getState()
+        // State 2 = SCANNING, 3 = PAUSED, 1 = NOT_STARTED
+        if (state !== 2) {
+          await scannerRef.current.stop().catch(() => {})
+          try { scannerRef.current.clear() } catch {}
+          scannerRef.current = null
+          setIsScanning(false)
+          await new Promise((r) => setTimeout(r, 400))
+          await startScannerRef.current?.()
+        }
+      } catch (e) {
+        console.error('Restart scanner error:', e)
+      }
+    }, 2500)
+  }, [])
+
+  // ============================================
+  // Handle QR Scan
   // ============================================
   const handleScan = useCallback(
     async (decodedText: string) => {
@@ -197,41 +210,39 @@ export default function AttendanceScannerPage() {
 
       if (!token) return
 
-      // ==========================================
-      // GUARD 1: Token ini sedang terlihat di frame
-      // ==========================================
-      // Kalau token sama dengan yang terakhir terlihat < 3 detik,
-      // berarti QR masih ada di depan kamera → skip, tapi update lastSeenTime
+      // Guard 0: scanner state
+      if (scannerRef.current) {
+        try {
+          const state = scannerRef.current.getState()
+          if (state !== 2) return
+        } catch {}
+      }
+
+      // Guard 1: Token sedang terlihat di frame
       if (
         token === lastSeenTokenRef.current &&
         now - lastSeenTimeRef.current < 3000
       ) {
-        lastSeenTimeRef.current = now  // refresh karena masih terlihat
+        lastSeenTimeRef.current = now
         return
       }
 
-      // Kalau token berbeda dari yang terakhir terlihat → update tracking
       if (token !== lastSeenTokenRef.current) {
         lastSeenTokenRef.current = token
         lastSeenTimeRef.current = now
       }
 
-      // ==========================================
-      // GUARD 2: Token ini baru discan < 5 detik lalu
-      // ==========================================
+      // Guard 2: Token ini baru discan < 10 detik lalu
       if (
         token === lastScannedTokenRef.current &&
-        now - lastScanTimeRef.current < 5000
+        now - lastScanTimeRef.current < 10000
       ) {
         return
       }
 
-      // ==========================================
-      // GUARD 3: Cegah concurrent request
-      // ==========================================
+      // Guard 3: Concurrent
       if (processingRef.current) return
 
-      // Lock
       lastScanTimeRef.current = now
       lastScannedTokenRef.current = token
       processingRef.current = true
@@ -268,6 +279,9 @@ export default function AttendanceScannerPage() {
             student_class: data.student?.sub_class_name,
           })
           await fetchSession()
+
+          // ✅ Restart scanner setelah 2.5s untuk cegah blank hitam
+          restartScanner()
         }
       } catch (error: any) {
         const status = error.response?.status
@@ -297,10 +311,10 @@ export default function AttendanceScannerPage() {
         processingRef.current = false
       }
     },
-    [API_URL, fetchSession, addLog, playBeep]
+    [API_URL, fetchSession, addLog, playBeep, restartScanner]
   )
 
-  // ✅ Update handleScanRef setiap kali handleScan berubah
+  // Update handleScanRef
   useEffect(() => {
     handleScanRef.current = handleScan
   }, [handleScan])
@@ -322,13 +336,10 @@ export default function AttendanceScannerPage() {
           qrbox: { width: 250, height: 250 },
           aspectRatio: 1.0,
         },
-        // ✅ Pakai handleScanRef.current — selalu callback yang up-to-date
         (decodedText) => {
           handleScanRef.current(decodedText)
         },
-        () => {
-          // Ignore — noise saat QR belum terbaca
-        }
+        () => {}
       )
 
       setIsScanning(true)
@@ -341,11 +352,21 @@ export default function AttendanceScannerPage() {
     }
   }, [])
 
+  // Simpan startScanner di ref biar bisa dipanggil dari restartScanner
+  const startScannerRef = useRef<(() => Promise<void>) | null>(null)
+  useEffect(() => {
+    startScannerRef.current = startScanner
+  }, [startScanner])
+
   const stopScanner = useCallback(async () => {
+    if (restartTimerRef.current) {
+      clearTimeout(restartTimerRef.current)
+      restartTimerRef.current = null
+    }
     if (!scannerRef.current) return
     try {
       await scannerRef.current.stop()
-      scannerRef.current.clear()
+      try { scannerRef.current.clear() } catch {}
     } catch (e) {
       console.error('Stop scanner error:', e)
     } finally {
@@ -354,9 +375,10 @@ export default function AttendanceScannerPage() {
     }
   }, [])
 
-  // Cleanup saat unmount
+  // Cleanup
   useEffect(() => {
     return () => {
+      if (restartTimerRef.current) clearTimeout(restartTimerRef.current)
       if (scannerRef.current) {
         scannerRef.current.stop().catch(() => {})
       }
@@ -373,15 +395,12 @@ export default function AttendanceScannerPage() {
     try {
       const token = await getAuthToken()
       if (!token) return
-
       await stopScanner()
-
       const res = await axios.post(
         `${API_URL}/api/school-admin/attendance/sessions/${sessionId}/close`,
         {},
         { headers: { Authorization: `Bearer ${token}` } }
       )
-
       const absentCount = res.data?.absent_count ?? 0
       alert(`Sesi ditutup. ${absentCount} siswa ditandai ABSEN.`)
       navigate('/school-admin/dashboard/attendance/sessions')
@@ -391,7 +410,7 @@ export default function AttendanceScannerPage() {
   }
 
   // ============================================
-  // Render: Loading
+  // Render
   // ============================================
   if (loading) {
     return (
@@ -401,9 +420,6 @@ export default function AttendanceScannerPage() {
     )
   }
 
-  // ============================================
-  // Render: Error
-  // ============================================
   if (error && !session) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] gap-3">
@@ -427,9 +443,6 @@ export default function AttendanceScannerPage() {
       ? Math.round((session.total_check_in / session.total_students) * 100)
       : 0
 
-  // ============================================
-  // Render
-  // ============================================
   return (
     <div className="space-y-4">
       {/* Header Bar */}
@@ -460,9 +473,7 @@ export default function AttendanceScannerPage() {
           <div>
             <h1 className="text-lg font-bold text-tp-text">{session.title}</h1>
             <div className="flex items-center gap-3 text-xs text-tp-muted mt-1 flex-wrap">
-              <span>
-                {session.shift_name} ({session.shift_code})
-              </span>
+              <span>{session.shift_name} ({session.shift_code})</span>
               {session.class_group_name && (
                 <span>
                   {session.class_group_name}
@@ -482,7 +493,6 @@ export default function AttendanceScannerPage() {
           </div>
         </div>
 
-        {/* Progress Bar */}
         <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
           <div
             className="h-full bg-tp-green transition-all duration-500"
@@ -490,7 +500,6 @@ export default function AttendanceScannerPage() {
           />
         </div>
 
-        {/* Quick Stats */}
         <div className="grid grid-cols-3 gap-3 mt-4">
           <div className="text-center p-3 rounded-xl bg-emerald-50">
             <p className="text-lg font-bold text-emerald-700">{session.total_check_in}</p>
@@ -502,10 +511,7 @@ export default function AttendanceScannerPage() {
           </div>
           <div className="text-center p-3 rounded-xl bg-blue-50">
             <p className="text-lg font-bold text-blue-700">
-              {Math.max(
-                0,
-                session.total_students - session.total_check_in - session.total_absent
-              )}
+              {Math.max(0, session.total_students - session.total_check_in - session.total_absent)}
             </p>
             <p className="text-[10px] text-blue-600 uppercase tracking-wide">Belum</p>
           </div>
@@ -532,11 +538,9 @@ export default function AttendanceScannerPage() {
           </div>
         ) : (
           <>
-            {/* QR Reader Container */}
             <div className="relative bg-black">
               <div id="qr-reader" className="w-full min-h-[400px]" />
 
-              {/* Overlay: Cooldown */}
               {cooldown && (
                 <div className="absolute inset-0 bg-emerald-500/90 flex items-center justify-center z-10 pointer-events-none">
                   <div className="text-white text-center">
@@ -547,7 +551,6 @@ export default function AttendanceScannerPage() {
                 </div>
               )}
 
-              {/* Overlay: Belum aktifkan kamera */}
               {!isScanning && !cooldown && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 text-white gap-4">
                   <Camera size={48} className="opacity-50" />
@@ -562,7 +565,6 @@ export default function AttendanceScannerPage() {
                 </div>
               )}
 
-              {/* Overlay: Scanning hint */}
               {isScanning && !cooldown && (
                 <div className="absolute bottom-4 left-0 right-0 text-center pointer-events-none">
                   <p className="inline-block bg-black/60 text-white text-xs px-3 py-1.5 rounded-full">
@@ -572,7 +574,6 @@ export default function AttendanceScannerPage() {
               )}
             </div>
 
-            {/* Controls */}
             <div className="p-4 flex items-center justify-between gap-3 border-t border-tp-border">
               <div className="flex items-center gap-2 text-xs text-tp-muted">
                 <QrCode size={14} />
