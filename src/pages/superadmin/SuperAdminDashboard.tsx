@@ -19,6 +19,13 @@ import {
   Building2
 } from 'lucide-react'
 
+interface Membership {
+  school_id: string
+  school_name: string
+  school_active: boolean
+  role_in_school: string
+}
+
 interface UserItem {
   id: string
   nama_guru: string
@@ -29,6 +36,8 @@ interface UserItem {
   is_active: boolean
   last_login: string | null
   updated_at: string
+  teacher_type: 'b2c' | 'b2b' | 'hybrid'   
+  memberships: Membership[]                 
 }
 
 interface LogItem {
