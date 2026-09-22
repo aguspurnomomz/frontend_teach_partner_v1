@@ -336,7 +336,8 @@ export default function SuperAdminSecurity({ logs, onRefreshLogs }: SuperAdminSe
                         )}
                       </td>
                       <td className="px-5 py-3.5 text-xs text-tp-text max-w-xs truncate" title={log.user_agent}>
-                        {log.details || log.user_agent || '-'}
+                        {/* {log.details || log.user_agent || '-'} */}
+                        {log.user_agent || '-'}
                       </td>
                     </tr>
                   ))
