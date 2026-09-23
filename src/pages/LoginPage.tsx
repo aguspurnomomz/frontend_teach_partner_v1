@@ -3,10 +3,12 @@ import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient'
 import axios from 'axios'
 import teachpartnerIcon from '../assets/teachpartner.png'
+import characterImage from '../assets/waving.svg' 
 import { Button } from '../components/ui/button'
 import { Input } from '../components/ui/input'
 import { Label } from '../components/ui/label'
 import { Eye, EyeOff } from 'lucide-react'
+import { motion, useMotionValue, useTransform } from 'framer-motion'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -17,6 +19,26 @@ export default function LoginPage() {
   const navigate = useNavigate()
 
   const API_URL = import.meta.env.VITE_API_URL
+
+  // Setup motion value untuk melacak kursor di banner kiri
+  const x = useMotionValue(0)
+  const y = useMotionValue(0)
+
+  // Efek geser untuk teks (pergeseran halus)
+  const textX = useTransform(x, [-200, 200], [-10, 10])
+  const textY = useTransform(y, [-200, 200], [-10, 10])
+
+  // Efek geser untuk gambar karakter (dibuat sedikit lebih responsif agar ada efek 3D / layer berbeda)
+  const charX = useTransform(x, [-200, 200], [-20, 20])
+  const charY = useTransform(y, [-200, 200], [-20, 20])
+
+  const handleMouseBanner = (event: React.MouseEvent<HTMLDivElement>) => {
+    const rect = event.currentTarget.getBoundingClientRect()
+    const centerX = rect.left + rect.width / 2
+    const centerY = rect.top + rect.height / 2
+    x.set(event.clientX - centerX)
+    y.set(event.clientY - centerY)
+  }
 
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -29,7 +51,6 @@ export default function LoginPage() {
       const token = authData.session?.access_token
       if (!token) throw new Error('Sesi token tidak ditemukan.')
 
-      // Cek role via backend
       const res = await axios.get(`${API_URL}/api/auth/check-role`, {
         headers: { Authorization: `Bearer ${token}` }
       })
@@ -37,20 +58,16 @@ export default function LoginPage() {
       const role = res.data.role
       const schoolInactive = res.data.school_inactive === true
 
-      // Kalau school_admin DAN sekolah nonaktif → redirect ke "/" 
-      // (App.tsx akan render SchoolInactivePage)
       if (role === 'school_admin' && schoolInactive) {
         navigate('/', { replace: true })
         return
       }
 
-      // Kalau school_admin aktif → langsung ke dashboard
       if (role === 'school_admin') {
         navigate('/school-admin/dashboard', { replace: true })
         return
       }
 
-      // Teacher
       navigate('/', { replace: true })
 
     } catch (err: any) {
@@ -60,22 +77,13 @@ export default function LoginPage() {
     }
   }
 
-  // const handleGoogleLoginNot = async () => {
-  //   const { error } = await supabase.auth.signInWithOAuth({
-  //     provider: 'google',
-  //   })
-  //   if (error) {
-  //     alert('Gagal login dengan Google: ' + error.message)
-  //   }
-  // }
-
   const handleGoogleLogin = async () => {
-  if (!agreed) {
-    alert('Harap setujui Syarat & Ketentuan terlebih dahulu.')
-    return
-  }
+    if (!agreed) {
+      alert('Harap setujui Syarat & Ketentuan terlebih dahulu.')
+      return
+    }
 
-  const { error } = await supabase.auth.signInWithOAuth({
+    const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
         redirectTo: `${window.location.origin}/`,
@@ -95,8 +103,11 @@ export default function LoginPage() {
     <div className="flex min-h-screen items-start justify-center bg-tp-bg p-3 sm:items-center sm:p-6 bg-[radial-gradient(ellipse_at_0%_0%,rgba(125,211,167,0.25),transparent_50%),radial-gradient(ellipse_at_100%_100%,rgba(15,76,54,0.12),transparent_45%)]">
       <div className="grid w-full max-w-[920px] my-auto overflow-hidden rounded-3xl border border-tp-border bg-white shadow-tp-md md:grid-cols-2">
         
-        {/* Kolom Kiri: Branding / Banner */}
-        <div className="relative flex flex-col justify-between gap-6 overflow-hidden bg-gradient-to-br from-tp-green via-[#1a6b4a] to-[#0d3d2c] p-6 text-white md:min-h-[520px] md:gap-0 md:p-10">
+        {/* Kolom Kiri: Banner dengan Interaksi Kursor & Karakter */}
+        <div 
+          onMouseMove={handleMouseBanner}
+          className="relative flex flex-col justify-between gap-6 overflow-hidden bg-gradient-to-br from-tp-green via-[#1a6b4a] to-[#0d3d2c] p-6 text-white md:min-h-[520px] md:gap-0 md:p-10 cursor-default"
+        >
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_80%_20%,rgba(125,211,167,0.35),transparent_40%),radial-gradient(circle_at_10%_90%,rgba(255,255,255,0.08),transparent_35%)]" />
 
           <div className="relative z-10 flex items-center gap-2.5 text-lg font-bold">
@@ -107,14 +118,30 @@ export default function LoginPage() {
             />
           </div>
 
-          <div className="relative z-10 py-2 md:py-6">
-            <h2 className="mb-2 text-xl font-bold leading-snug tracking-tight sm:text-[22px] md:text-[28px]">
+          {/* Bagian Teks */}
+          <motion.div 
+            style={{ x: textX, y: textY }}
+            className="relative z-10 py-2 md:py-4 transition-transform ease-out"
+          >
+            <h2 className="mb-2 text-xl font-bold leading-snug tracking-tight sm:text-[22px] md:text-[26px]">
               Kelola dan buat administrasi mengajar menjadi lebih mudah
             </h2>
             <p className="max-w-xs text-xs leading-relaxed text-white/80 sm:text-sm">
               Satu platform terintegrasi untuk perangkat ajar, bank soal dan e-book bahan ajar.
             </p>
-          </div>
+          </motion.div>
+
+          {/* Gambar Karakter / Maskot yang Ikut Bergerak Mengikuti Kursor */}
+           <motion.div 
+            style={{ x: charX, y: charY }}
+            className="relative z-20 self-center my-2 max-w-[180px] md:max-w-[210px] pointer-events-none"
+          >
+            <img 
+              src={characterImage} 
+              alt="Karakter TeachPartner" 
+              className="w-full h-auto object-contain drop-shadow-xl"
+            />
+          </motion.div> 
 
           <div className="relative z-10 text-[11px] text-white/55 sm:text-xs">
             © 2026 TeachPartner by{' '}
@@ -255,7 +282,7 @@ export default function LoginPage() {
           </Button>
 
           <p className="mt-5 text-center text-xs sm:text-[13px] text-tp-muted">
-            Belum punya akun?{' '}
+            Belum punya akaun?{' '}
             <Link to="/register" className="font-semibold text-tp-green hover:underline">
               Daftar di sini
             </Link>

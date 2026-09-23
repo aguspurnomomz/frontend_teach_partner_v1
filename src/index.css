@@ -166,3 +166,44 @@
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
 }
+
+@media print {
+  /* Sembunyikan sidebar, header, tombol */
+  aside,
+  header,
+  button,
+  nav {
+    display: none !important;
+  }
+
+  /* Reset margin */
+  body,
+  main {
+    margin: 0 !important;
+    padding: 0 !important;
+    background: white !important;
+  }
+
+  /* Card tidak ada shadow saat print */
+  .rounded-2xl,
+  .rounded-xl {
+    box-shadow: none !important;
+    border: 1px solid #e2e8f0 !important;
+    page-break-inside: avoid;
+  }
+
+  /* Judul besar */
+  h2 {
+    font-size: 18pt !important;
+  }
+
+  /* Setiap soal jangan pecah halaman */
+  .rounded-xl {
+    page-break-inside: avoid;
+  }
+
+  /* Hidden print class */
+  .print\:hidden {
+    display: none !important;
+  }
+}

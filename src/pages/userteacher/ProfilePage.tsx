@@ -35,9 +35,9 @@ export default function ProfilePage({ session }: { session: any }) {
         }
       } catch (err) {
         console.error('Gagal memuat profil:', err)
-        fetchPromise = null
         if (isMounted) setProfile({})
       } finally {
+        fetchPromise = null  
         if (isMounted) setLoading(false)
       }
     }

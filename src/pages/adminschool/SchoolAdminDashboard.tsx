@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { supabase } from '../../lib/supabaseClient'
 import teachpartnerIcon from '../../assets/teachpartner.png'
-import { Users, Building2, ShieldCheck, LogOut, Calendar, LayoutDashboard, GraduationCap,  ClipboardCheck, } from 'lucide-react'
+import { Users, Building2, ShieldCheck, LogOut, Calendar, CalendarClock, LayoutDashboard, GraduationCap,  ClipboardCheck, FileText} from 'lucide-react'
 
 export default function SchoolAdminDashboard({ session }: { session: any }) {
   const navigate = useNavigate()
@@ -15,15 +15,54 @@ export default function SchoolAdminDashboard({ session }: { session: any }) {
   const displayName = email.split('@')[0] || 'Admin'
   const initial = (email.charAt(0) || 'A').toUpperCase()
 
- 
-  const menuItems = [
-    { path: '/school-admin/dashboard', label: 'Ringkasan', icon: <LayoutDashboard size={18} /> },
-    { path: '/school-admin/dashboard/school', label: 'Data Sekolah', icon: <Building2 size={18} /> },
-    { path: '/school-admin/dashboard/academic-years', label: 'Tahun Akademik', icon: <Calendar size={18} /> },
-    { path: '/school-admin/dashboard/classes', label: 'Kelola Kelas', icon: <Users size={18} /> },
-    { path: '/school-admin/dashboard/students', label: 'Kelola Siswa', icon: <GraduationCap size={18} /> },
-    { path: '/school-admin/dashboard/attendance', label: 'Kelola Absensi', icon: <ClipboardCheck size={18} /> },
-  ]
+
+
+const menuItems = [
+  { 
+    path: '/school-admin/dashboard', 
+    label: 'Ringkasan', 
+    icon: <LayoutDashboard size={18} /> 
+  },
+  { 
+    path: '/school-admin/dashboard/school', 
+    label: 'Data Sekolah', 
+    icon: <Building2 size={18} /> 
+  },
+  { 
+    path: '/school-admin/dashboard/academic-years', 
+    label: 'Tahun Akademik', 
+    icon: <Calendar size={18} /> 
+  },
+  { 
+    path: '/school-admin/dashboard/classes', 
+    label: 'Kelola Kelas', 
+    icon: <Users size={18} /> 
+  },
+  { 
+    path: '/school-admin/dashboard/students', 
+    label: 'Kelola Siswa', 
+    icon: <GraduationCap size={18} /> 
+  },
+  
+  // === MENU BARU ===
+  { 
+    path: '/school-admin/dashboard/exams', 
+    label: 'Soal Ujian', 
+    icon: <FileText size={18} /> 
+  },
+  { 
+    path: '/school-admin/dashboard/exam-schedules', 
+    label: 'Jadwal Ujian', 
+    icon: <CalendarClock size={18} /> 
+  },
+  // ================
+  
+  { 
+    path: '/school-admin/dashboard/attendance', 
+    label: 'Kelola Absensi', 
+    icon: <ClipboardCheck size={18} /> 
+  },
+]
 
   useEffect(() => {
     const checkSession = async () => {
