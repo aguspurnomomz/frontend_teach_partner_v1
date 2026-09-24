@@ -116,12 +116,8 @@ export default function App() {
 
   const [schoolInactive, setSchoolInactive] = useState(false)
 
-  const [adminToken, setAdminToken] = useState<string | null>(
-    localStorage.getItem('superadmin_token')
-  )
-  const [adminName, setAdminName] = useState<string>(
-    localStorage.getItem('superadmin_name') || ''
-  )
+  const [adminToken, setAdminToken] = useState<string | null>(localStorage.getItem('superadmin_token'))
+  const [adminName, setAdminName] = useState<string>(localStorage.getItem('superadmin_name') || '')
 
   const [teacherType, setTeacherType] = useState<'b2c' | 'b2b' | 'hybrid'>('b2c')
   const [schoolMemberships, setSchoolMemberships] = useState<any[]>([])
@@ -130,7 +126,7 @@ export default function App() {
 
   const API_URL = import.meta.env.VITE_API_URL
 
-  // ← useRef: lacak user yang sudah di-fetch dalam sesi hidup
+  // useRef: lacak user yang sudah di-fetch dalam sesi hidup
   const lastFetchedUserIdRef = useRef<string | null>(null)
 
   useEffect(() => {
@@ -454,10 +450,12 @@ export default function App() {
         >
           <Route index element={<DashboardOverview tokenBalance={tokenBalance} />} />
           <Route path="profile" element={<ProfilePage session={session} />} />
+
           <Route
             path="question-bank"
             element={<QuestionBankPage onBack={() => (window.location.href = '/')} />}
           />
+          
           <Route path="ebooks" element={<EbooksPage />} />
           <Route path="billing" element={<BillingPage />} />
           <Route path="exam-session" element={<ExamSessionPage session={session} />} />

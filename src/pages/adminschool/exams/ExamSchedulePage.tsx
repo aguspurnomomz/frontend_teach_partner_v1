@@ -2,11 +2,15 @@ import { useEffect, useState, useCallback } from 'react'
 import axios from 'axios'
 import { useNavigate } from 'react-router-dom'
 import {
-  Plus, Search, Calendar,  MapPin, User, Users,
-  MoreVertical, Edit3, Trash2, PlayCircle, Eye, BarChart3,
-  AlertCircle, 
+  Plus, Search, Calendar, MapPin, User, Users,
+  MoreVertical, Edit3, PlayCircle, Eye, BarChart3,
+  AlertCircle, AlertTriangle, XCircle, Loader2,
 } from 'lucide-react'
 import { supabase } from '../../../lib/supabaseClient'
+
+// ==========================================
+// TYPES
+// ==========================================
 
 type ExamSchedule = {
   id: string
@@ -33,15 +37,43 @@ type ExamSchedule = {
 
 type DateFilter = 'all' | 'today' | 'week' | 'upcoming' | 'past'
 
+// ==========================================
+// CONSTANTS
+// ==========================================
+
 const STATUS_STYLE: Record<
   ExamSchedule['status'],
   { label: string; bg: string; text: string; dot: string }
 > = {
-  scheduled: { label: 'Terjadwal', bg: 'bg-blue-50', text: 'text-blue-700', dot: 'bg-blue-500' },
-  ongoing:   { label: 'Berlangsung', bg: 'bg-emerald-50', text: 'text-emerald-700', dot: 'bg-emerald-500 animate-pulse' },
-  completed: { label: 'Selesai', bg: 'bg-slate-100', text: 'text-slate-600', dot: 'bg-slate-400' },
-  cancelled: { label: 'Dibatalkan', bg: 'bg-rose-50', text: 'text-rose-700', dot: 'bg-rose-500' },
+  scheduled: {
+    label: 'Terjadwal',
+    bg: 'bg-blue-50',
+    text: 'text-blue-700',
+    dot: 'bg-blue-500',
+  },
+  ongoing: {
+    label: 'Berlangsung',
+    bg: 'bg-emerald-50',
+    text: 'text-emerald-700',
+    dot: 'bg-emerald-500 animate-pulse',
+  },
+  completed: {
+    label: 'Selesai',
+    bg: 'bg-slate-100',
+    text: 'text-slate-600',
+    dot: 'bg-slate-400',
+  },
+  cancelled: {
+    label: 'Dibatalkan',
+    bg: 'bg-rose-50',
+    text: 'text-rose-700',
+    dot: 'bg-rose-500',
+  },
 }
+
+// ==========================================
+// MAIN COMPONENT
+// ==========================================
 
 export default function ExamSchedulePage() {
   const navigate = useNavigate()
@@ -54,6 +86,14 @@ export default function ExamSchedulePage() {
   const [search, setSearch] = useState('')
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
 
+  // ← Cancel modal state
+  const [cancelTarget, setCancelTarget] = useState<ExamSchedule | null>(null)
+  const [cancelReason, setCancelReason] = useState('')
+  const [cancelling, setCancelling] = useState(false)
+
+  // ==========================================
+  // Fetch schedules
+  // ==========================================
   const fetchSchedules = useCallback(async () => {
     setLoading(true)
     setError(null)
@@ -87,6 +127,7 @@ export default function ExamSchedulePage() {
     return () => clearTimeout(t)
   }, [fetchSchedules])
 
+  // Close dropdown menu
   useEffect(() => {
     const handler = () => setOpenMenuId(null)
     if (openMenuId) {
@@ -95,6 +136,41 @@ export default function ExamSchedulePage() {
     }
   }, [openMenuId])
 
+  // ==========================================
+  // Cancel handler
+  // ==========================================
+  const handleCancel = async () => {
+    if (!cancelTarget) return
+
+    setCancelling(true)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+
+      await axios.patch(
+        `${API_URL}/api/school-admin/exam-schedules/${cancelTarget.id}/cancel`,
+        { reason: cancelReason.trim() || 'Dibatalkan oleh admin' },
+        { headers: { Authorization: `Bearer ${session?.access_token}` } }
+      )
+
+      setCancelTarget(null)
+      setCancelReason('')
+      await fetchSchedules()
+    } catch (e: unknown) {
+      let errMsg = 'Gagal membatalkan jadwal'
+      if (axios.isAxiosError(e)) {
+        errMsg = (e.response?.data as { error?: string })?.error || e.message
+      } else if (e instanceof Error) {
+        errMsg = e.message
+      }
+      alert(errMsg)
+    } finally {
+      setCancelling(false)
+    }
+  }
+
+  // ==========================================
+  // Stats
+  // ==========================================
   const stats = {
     all: schedules.length,
     today: schedules.filter((s) => isToday(s.schedule_date)).length,
@@ -104,7 +180,9 @@ export default function ExamSchedulePage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {/* ==========================================
+          Header
+      ========================================== */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-lg font-bold text-tp-text">Jadwal Ujian</h1>
@@ -121,7 +199,9 @@ export default function ExamSchedulePage() {
         </button>
       </div>
 
-      {/* Filter tab */}
+      {/* ==========================================
+          Filter tabs
+      ========================================== */}
       <div className="rounded-2xl border border-tp-border bg-white p-2">
         <div className="flex flex-wrap items-center gap-1.5">
           {(
@@ -146,14 +226,18 @@ export default function ExamSchedulePage() {
                 type="button"
                 onClick={() => setDateFilter(key)}
                 className={`inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-xs font-semibold transition ${
-                  active ? 'bg-tp-green text-white' : 'text-tp-muted hover:bg-slate-100'
+                  active
+                    ? 'bg-tp-green text-white'
+                    : 'text-tp-muted hover:bg-slate-100'
                 }`}
               >
                 {label}
                 {count !== null && (
                   <span
                     className={`rounded-md px-1.5 py-0.5 text-[10px] font-bold ${
-                      active ? 'bg-white/25 text-white' : 'bg-slate-100 text-tp-muted'
+                      active
+                        ? 'bg-white/25 text-white'
+                        : 'bg-slate-100 text-tp-muted'
                     }`}
                   >
                     {count}
@@ -165,9 +249,14 @@ export default function ExamSchedulePage() {
         </div>
       </div>
 
-      {/* Search */}
+      {/* ==========================================
+          Search
+      ========================================== */}
       <div className="relative">
-        <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-tp-muted" />
+        <Search
+          size={16}
+          className="absolute left-3.5 top-1/2 -translate-y-1/2 text-tp-muted"
+        />
         <input
           type="text"
           value={search}
@@ -177,6 +266,9 @@ export default function ExamSchedulePage() {
         />
       </div>
 
+      {/* ==========================================
+          Error
+      ========================================== */}
       {error && (
         <div className="flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700">
           <AlertCircle size={14} className="mt-0.5 shrink-0" />
@@ -184,10 +276,16 @@ export default function ExamSchedulePage() {
         </div>
       )}
 
+      {/* ==========================================
+          Content
+      ========================================== */}
       {loading ? (
         <div className="space-y-3">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="h-40 animate-pulse rounded-2xl border border-tp-border bg-white" />
+            <div
+              key={i}
+              className="h-40 animate-pulse rounded-2xl border border-tp-border bg-white"
+            />
           ))}
         </div>
       ) : schedules.length === 0 ? (
@@ -195,13 +293,17 @@ export default function ExamSchedulePage() {
           <div className="mx-auto mb-3 grid h-14 w-14 place-items-center rounded-2xl bg-slate-50">
             <Calendar size={24} className="text-slate-400" />
           </div>
-          <p className="mb-1 text-sm font-bold text-tp-text">Belum ada jadwal ujian</p>
+          <p className="mb-1 text-sm font-bold text-tp-text">
+            Belum ada jadwal ujian
+          </p>
           <p className="mb-5 text-xs text-tp-muted">
             Buat jadwal dari soal ujian yang sudah dipublish, atau buat soal dadakan.
           </p>
           <button
             type="button"
-            onClick={() => navigate('/school-admin/dashboard/exam-schedules/create')}
+            onClick={() =>
+              navigate('/school-admin/dashboard/exam-schedules/create')
+            }
             className="inline-flex items-center gap-2 rounded-xl bg-tp-green px-4 py-2.5 text-sm font-semibold text-white hover:bg-tp-green-hover"
           >
             <Plus size={16} /> Buat Jadwal Pertama
@@ -215,12 +317,114 @@ export default function ExamSchedulePage() {
               schedule={s}
               openMenuId={openMenuId}
               setOpenMenuId={setOpenMenuId}
-              onMonitor={() => navigate(`/school-admin/dashboard/exam-schedules/${s.id}/monitor`)}
-              onDetail={() => navigate(`/school-admin/dashboard/exam-schedules/${s.id}`)}
-              onEdit={() => navigate(`/school-admin/dashboard/exam-schedules/${s.id}/edit`)}
-              onGrades={() => navigate(`/school-admin/dashboard/exam-schedules/${s.id}/grades`)}
+              onMonitor={() =>
+                navigate(`/school-admin/dashboard/exam-schedules/${s.id}/monitor`)
+              }
+              onDetail={() =>
+                navigate(`/school-admin/dashboard/exam-schedules/${s.id}`)
+              }
+              onEdit={() =>
+                navigate(`/school-admin/dashboard/exam-schedules/${s.id}/edit`)
+              }
+              onGrades={() =>
+                navigate(`/school-admin/dashboard/exam-schedules/${s.id}/grades`)
+              }
+              onCancel={() => setCancelTarget(s)}
             />
           ))}
+        </div>
+      )}
+
+      {/* ==========================================
+          Modal: Cancel Schedule
+      ========================================== */}
+      {cancelTarget && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            onClick={() => !cancelling && setCancelTarget(null)}
+          />
+          <div className="relative w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+            <div className="mb-4 flex items-start gap-3">
+              <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-rose-100">
+                <AlertTriangle size={20} className="text-rose-600" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-tp-text">
+                  Batalkan Jadwal?
+                </h3>
+                <p className="text-xs text-tp-muted">
+                  Jadwal ini akan dibatalkan dan tidak bisa diaktifkan kembali.
+                </p>
+              </div>
+            </div>
+
+            {/* Info jadwal */}
+            <div className="mb-4 rounded-xl bg-slate-50 p-3">
+              <p className="text-xs text-tp-muted">
+                <b className="text-tp-text">{cancelTarget.exam_title}</b>
+                <br />
+                {cancelTarget.subject} •{' '}
+                {cancelTarget.class_sub_group_name || 'Semua kelas'}
+                <br />
+                {formatFullDate(cancelTarget.schedule_date)} •{' '}
+                {cancelTarget.start_time?.slice(0, 5)} -{' '}
+                {cancelTarget.end_time?.slice(0, 5)}
+              </p>
+            </div>
+
+            {/* Warning */}
+            <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3">
+              <p className="text-[11px] text-amber-800">
+                ⚠️ <b>Hanya bisa dibatalkan</b> kalau belum ada siswa yang
+                mengerjakan. Kalau sudah berjalan, gunakan <b>Tutup Sesi</b> di
+                halaman Monitor.
+              </p>
+            </div>
+
+            {/* Reason */}
+            <label className="mb-1.5 block text-xs font-semibold text-tp-text">
+              Alasan pembatalan (opsional)
+            </label>
+            <textarea
+              rows={2}
+              value={cancelReason}
+              onChange={(e) => setCancelReason(e.target.value)}
+              placeholder="Contoh: Ujian diundur karena libur nasional"
+              className="w-full resize-none rounded-xl border border-tp-border px-3 py-2 text-sm focus:border-rose-500 focus:outline-none"
+              autoFocus
+            />
+
+            {/* Actions */}
+            <div className="mt-5 flex gap-3">
+              <button
+                type="button"
+                disabled={cancelling}
+                onClick={() => {
+                  setCancelTarget(null)
+                  setCancelReason('')
+                }}
+                className="flex-1 rounded-xl border border-tp-border bg-white px-4 py-2.5 text-sm font-semibold text-tp-muted hover:bg-slate-50 disabled:opacity-50"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                disabled={cancelling}
+                onClick={handleCancel}
+                className="flex-1 rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-rose-700 disabled:opacity-50"
+              >
+                {cancelling ? (
+                  <>
+                    <Loader2 size={12} className="mr-1 inline animate-spin" />
+                    Membatalkan...
+                  </>
+                ) : (
+                  'Ya, Batalkan'
+                )}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
@@ -239,6 +443,7 @@ function ScheduleCard({
   onDetail,
   onEdit,
   onGrades,
+  onCancel,
 }: {
   schedule: ExamSchedule
   openMenuId: string | null
@@ -247,12 +452,19 @@ function ScheduleCard({
   onDetail: () => void
   onEdit: () => void
   onGrades: () => void
+  onCancel: () => void
 }) {
   const cfg = STATUS_STYLE[schedule.status]
   const isTodayDate = isToday(schedule.schedule_date)
-  const progress = schedule.total_students > 0
-    ? Math.round((schedule.total_submitted / schedule.total_students) * 100)
-    : 0
+  const progress =
+    schedule.total_students > 0
+      ? Math.round((schedule.total_submitted / schedule.total_students) * 100)
+      : 0
+
+  // Hanya bisa dibatalkan kalau status scheduled
+  const canCancel =
+    schedule.status === 'scheduled' &&
+    schedule.total_submitted === 0
 
   return (
     <div className="rounded-2xl border border-tp-border bg-white p-5 transition hover:border-tp-green/40">
@@ -292,11 +504,13 @@ function ScheduleCard({
               <span className={`h-1.5 w-1.5 rounded-full ${cfg.dot}`} />
               {cfg.label}
             </span>
-            {isTodayDate && schedule.status !== 'completed' && (
-              <span className="rounded-md bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-700">
-                HARI INI
-              </span>
-            )}
+            {isTodayDate &&
+              schedule.status !== 'completed' &&
+              schedule.status !== 'cancelled' && (
+                <span className="rounded-md bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-700">
+                  HARI INI
+                </span>
+              )}
           </div>
 
           <div className="mb-2 flex flex-wrap items-center gap-2">
@@ -304,7 +518,9 @@ function ScheduleCard({
               {schedule.subject}
             </span>
             <span className="text-[11px] text-tp-muted">•</span>
-            <span className="text-[11px] text-tp-muted">{schedule.duration_minutes} menit</span>
+            <span className="text-[11px] text-tp-muted">
+              {schedule.duration_minutes} menit
+            </span>
             {schedule.class_sub_group_name && (
               <>
                 <span className="text-[11px] text-tp-muted">•</span>
@@ -355,16 +571,24 @@ function ScheduleCard({
             {schedule.average_score !== null && (
               <span className="inline-flex items-center gap-1">
                 <BarChart3 size={12} />
-                Rata-rata: <b className="text-tp-text">{schedule.average_score.toFixed(1)}</b>
+                Rata-rata:{' '}
+                <b className="text-tp-text">
+                  {schedule.average_score.toFixed(1)}
+                </b>
               </span>
             )}
-            {schedule.highest_score !== null && schedule.lowest_score !== null && (
-              <span className="text-tp-muted">
-                Tertinggi: <b className="text-emerald-600">{schedule.highest_score}</b>
-                {' • '}
-                Terendah: <b className="text-rose-600">{schedule.lowest_score}</b>
-              </span>
-            )}
+            {schedule.highest_score !== null &&
+              schedule.lowest_score !== null && (
+                <span className="text-tp-muted">
+                  Tertinggi:{' '}
+                  <b className="text-emerald-600">
+                    {schedule.highest_score}
+                  </b>
+                  {' • '}
+                  Terendah:{' '}
+                  <b className="text-rose-600">{schedule.lowest_score}</b>
+                </span>
+              )}
           </div>
         </div>
 
@@ -403,22 +627,85 @@ function ScheduleCard({
               type="button"
               onClick={(e) => {
                 e.stopPropagation()
-                setOpenMenuId(openMenuId === schedule.id ? null : schedule.id)
+                setOpenMenuId(
+                  openMenuId === schedule.id ? null : schedule.id
+                )
               }}
               className="grid h-9 w-9 place-items-center rounded-xl border border-tp-border bg-white text-tp-muted hover:bg-slate-50"
             >
               <MoreVertical size={14} />
             </button>
+
             {openMenuId === schedule.id && (
               <div
                 className="absolute right-0 top-full z-20 mt-1 w-48 overflow-hidden rounded-xl border border-tp-border bg-white shadow-lg"
                 onClick={(e) => e.stopPropagation()}
               >
-                <MenuItem icon={<Eye size={14} />} label="Lihat Detail" onClick={() => { setOpenMenuId(null); onDetail() }} />
-                <MenuItem icon={<BarChart3 size={14} />} label="Lihat Nilai" onClick={() => { setOpenMenuId(null); onGrades() }} />
-                <MenuItem icon={<Edit3 size={14} />} label="Edit Jadwal" onClick={() => { setOpenMenuId(null); onEdit() }} />
-                <div className="border-t border-tp-border" />
-                <MenuItem icon={<Trash2 size={14} />} label="Batalkan" tone="rose" onClick={() => setOpenMenuId(null)} />
+                <MenuItem
+                  icon={<Eye size={14} />}
+                  label="Lihat Detail"
+                  onClick={() => {
+                    setOpenMenuId(null)
+                    onDetail()
+                  }}
+                />
+                <MenuItem
+                  icon={<BarChart3 size={14} />}
+                  label="Lihat Nilai"
+                  onClick={() => {
+                    setOpenMenuId(null)
+                    onGrades()
+                  }}
+                />
+                {schedule.status === 'scheduled' && (
+                  <MenuItem
+                    icon={<Edit3 size={14} />}
+                    label="Edit Jadwal"
+                    onClick={() => {
+                      setOpenMenuId(null)
+                      onEdit()
+                    }}
+                  />
+                )}
+
+                {/* Cancel — hanya tampil kalau bisa dibatalkan */}
+                {canCancel && (
+                  <>
+                    <div className="border-t border-tp-border" />
+                    <MenuItem
+                      icon={<XCircle size={14} />}
+                      label="Batalkan"
+                      tone="rose"
+                      onClick={() => {
+                        setOpenMenuId(null)
+                        onCancel()
+                      }}
+                    />
+                  </>
+                )}
+
+                {/* Info kalau tidak bisa dibatalkan */}
+                {schedule.status === 'ongoing' && (
+                  <>
+                    <div className="border-t border-tp-border" />
+                    <div className="px-3.5 py-2.5 text-[10px] text-tp-faint">
+                      ⚠️ Ujian sudah berlangsung.
+                      <br />
+                      Gunakan <b>Tutup Sesi</b> di Monitor.
+                    </div>
+                  </>
+                )}
+                {schedule.status === 'scheduled' &&
+                  schedule.total_submitted > 0 && (
+                    <>
+                      <div className="border-t border-tp-border" />
+                      <div className="px-3.5 py-2.5 text-[10px] text-tp-faint">
+                        ⚠️ Sudah ada siswa submit.
+                        <br />
+                        Gunakan <b>Tutup Sesi</b> di Monitor.
+                      </div>
+                    </>
+                  )}
               </div>
             )}
           </div>
@@ -428,8 +715,15 @@ function ScheduleCard({
   )
 }
 
+// ==========================================
+// MenuItem
+// ==========================================
+
 function MenuItem({
-  icon, label, onClick, tone = 'default',
+  icon,
+  label,
+  onClick,
+  tone = 'default',
 }: {
   icon: React.ReactNode
   label: string
@@ -441,7 +735,9 @@ function MenuItem({
       type="button"
       onClick={onClick}
       className={`flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-xs font-medium transition ${
-        tone === 'rose' ? 'text-rose-600 hover:bg-rose-50' : 'text-tp-text hover:bg-slate-50'
+        tone === 'rose'
+          ? 'text-rose-600 hover:bg-rose-50'
+          : 'text-tp-text hover:bg-slate-50'
       }`}
     >
       {icon}
@@ -472,4 +768,14 @@ function formatDate(dateStr: string) {
 function formatMonth(dateStr: string) {
   const d = new Date(dateStr)
   return d.toLocaleDateString('id-ID', { month: 'short', year: 'numeric' })
+}
+
+function formatFullDate(dateStr: string) {
+  const d = new Date(dateStr)
+  return d.toLocaleDateString('id-ID', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  })
 }

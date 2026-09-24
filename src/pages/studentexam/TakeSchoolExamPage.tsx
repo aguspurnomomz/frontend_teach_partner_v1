@@ -77,9 +77,6 @@ export default function TakeSchoolExamPage() {
   // Server status check
   const [lastShownWarningAt, setLastShownWarningAt] = useState<string | null>(null)
 
-  // ==========================================
-  // REFS — untuk auto-submit yang reliable
-  // ==========================================
   const answersRef = useRef<AnswerMap>({})
   const tabSwitchCountRef = useRef(0)
   const timeLeftRef = useRef(0)
@@ -95,9 +92,7 @@ export default function TakeSchoolExamPage() {
     [snapshot, currentIndex]
   )
 
-  // ==========================================
-  // Resume check on mount
-  // ==========================================
+
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search)
     const codeFromUrl = urlParams.get('code')
@@ -128,9 +123,7 @@ export default function TakeSchoolExamPage() {
     }
   }, [])
 
-  // ==========================================
-  // Online / offline detection
-  // ==========================================
+
   useEffect(() => {
     const goOnline = () => setIsOnline(true)
     const goOffline = () => setIsOnline(false)
@@ -142,9 +135,7 @@ export default function TakeSchoolExamPage() {
     }
   }, [])
 
-  // ==========================================
-  // Sync state → refs (biar auto-submit selalu baca nilai terbaru)
-  // ==========================================
+
   useEffect(() => {
     answersRef.current = answers
   }, [answers])
@@ -161,23 +152,18 @@ export default function TakeSchoolExamPage() {
     submittingRef.current = submitting
   }, [submitting])
 
-  // ==========================================
-  // Timer — countdown dari expires_at
-  // (auto-submit HANYA SEKALI)
-  // ==========================================
+
   useEffect(() => {
     if (phase !== 'exam' || !snapshot) return
 
-    // Reset flag saat masuk exam
     autoSubmitTriggeredRef.current = false
 
     const tick = () => {
       const expires = new Date(snapshot.expires_at).getTime()
       const remaining = Math.max(0, Math.floor((expires - Date.now()) / 1000))
       setTimeLeft(remaining)
-      timeLeftRef.current = remaining // sync ke ref
+      timeLeftRef.current = remaining 
 
-      // Auto-submit HANYA SEKALI
       if (
         remaining <= 0 &&
         !autoSubmitTriggeredRef.current &&
@@ -192,11 +178,9 @@ export default function TakeSchoolExamPage() {
     tick()
     const interval = window.setInterval(tick, 1000)
     return () => window.clearInterval(interval)
-  }, [phase, snapshot]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [phase, snapshot]) 
 
-  // ==========================================
-  // Live block (tab-switch)
-  // ==========================================
+
   useEffect(() => {
     if (phase !== 'exam') return
 
@@ -226,9 +210,7 @@ export default function TakeSchoolExamPage() {
     }
   }, [phase, snapshot])
 
-  // ==========================================
-  // Disable right click & copy
-  // ==========================================
+
   useEffect(() => {
     if (phase !== 'exam') return
 
@@ -246,17 +228,13 @@ export default function TakeSchoolExamPage() {
     }
   }, [phase])
 
-  // ==========================================
-  // Auto-save answers
-  // ==========================================
+
   useEffect(() => {
     if (phase !== 'exam' || !snapshot) return
     saveAnswers(snapshot.schedule_id, answers)
   }, [answers, phase, snapshot])
 
-  // ==========================================
-  // Warning before unload
-  // ==========================================
+
   useEffect(() => {
     if (phase !== 'exam') return
     const handler = (e: BeforeUnloadEvent) => {
@@ -267,9 +245,7 @@ export default function TakeSchoolExamPage() {
     return () => window.removeEventListener('beforeunload', handler)
   }, [phase])
 
-  // ==========================================
-  // Realtime Subscribe — exam-control channel
-  // ==========================================
+
   useEffect(() => {
     if (phase !== 'exam' || !snapshot) return
 
@@ -313,9 +289,7 @@ export default function TakeSchoolExamPage() {
     }
   }, [phase, snapshot])
 
-  // ==========================================
-  // Auto-hide warning toast
-  // ==========================================
+
   useEffect(() => {
     if (!warningToast) return
     const timer = window.setTimeout(() => {
@@ -324,9 +298,7 @@ export default function TakeSchoolExamPage() {
     return () => window.clearTimeout(timer)
   }, [warningToast])
 
-  // ==========================================
-  // checkServerStatus — fallback kalau realtime gagal / offline → online
-  // ==========================================
+
   const checkServerStatus = useCallback(async () => {
     if (!snapshot) return
 
@@ -366,7 +338,6 @@ export default function TakeSchoolExamPage() {
         })
       }
 
-      // Handle warning (hindari duplikat)
       if (
         data.last_warning_at &&
         data.last_warning_at !== lastShownWarningAt
@@ -382,19 +353,18 @@ export default function TakeSchoolExamPage() {
     }
   }, [snapshot, API_URL, lastShownWarningAt])
 
-  // Trigger #1: saat mount pertama (masuk ujian)
+
   useEffect(() => {
     if (phase !== 'exam' || !snapshot) return
     checkServerStatus()
-  }, [phase, snapshot?.session_token]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [phase, snapshot?.session_token]) 
 
-  // Trigger #2: saat kembali online
+
   useEffect(() => {
     if (!isOnline || phase !== 'exam' || !snapshot) return
     checkServerStatus()
-  }, [isOnline]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isOnline]) 
 
-  // Trigger #3: heartbeat 30 detik (opsional)
   useEffect(() => {
     if (phase !== 'exam' || !snapshot) return
 
@@ -405,11 +375,9 @@ export default function TakeSchoolExamPage() {
     }, 30000)
 
     return () => window.clearInterval(interval)
-  }, [phase, snapshot?.session_token]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [phase, snapshot?.session_token]) 
 
-  // ==========================================
-  // Retry queued submit saat online kembali
-  // ==========================================
+
   useEffect(() => {
     if (!isOnline || !snapshot) return
 
@@ -447,15 +415,12 @@ export default function TakeSchoolExamPage() {
     }
 
     retryQueue()
-  }, [isOnline, snapshot?.session_token]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isOnline, snapshot?.session_token]) 
 
-  // ==========================================
-  // handleSubmit — baca dari REF untuk nilai terbaru
-  // ==========================================
+
   const handleSubmit = async (auto = false) => {
     if (!snapshot) return
 
-    // Cegah double submit
     if (submittingRef.current) {
       console.log('[TakeExam] Already submitting — skip')
       return
@@ -473,7 +438,6 @@ export default function TakeSchoolExamPage() {
       return
     }
 
-    // ★★★ BACA DARI REF — selalu nilai terbaru ★★★
     const currentAnswers = answersRef.current
     const currentTabSwitch = tabSwitchCountRef.current
     const currentTimeLeft = timeLeftRef.current
@@ -532,14 +496,11 @@ export default function TakeSchoolExamPage() {
     }
   }
 
-  // Sync handleSubmit ke ref (biar timer selalu panggil versi terbaru)
   useEffect(() => {
     handleSubmitRef.current = handleSubmit
   })
 
-  // ==========================================
-  // handleAutoSubmit — dipanggil saat timer habis
-  // ==========================================
+
   const handleAutoSubmit = useCallback(() => {
     if (!snapshot) return
     if (submittingRef.current) {
@@ -550,9 +511,7 @@ export default function TakeSchoolExamPage() {
     handleSubmitRef.current(true)
   }, [snapshot])
 
-  // ==========================================
-  // Handle Start Exam
-  // ==========================================
+
   const handleStart = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
@@ -610,9 +569,7 @@ export default function TakeSchoolExamPage() {
     }
   }
 
-  // ==========================================
-  // Handle answer change
-  // ==========================================
+
   const handleAnswerChange = (questionId: string, value: string) => {
     setAnswers((prev) => {
       const next = { ...prev, [questionId]: value }
@@ -621,9 +578,7 @@ export default function TakeSchoolExamPage() {
     })
   }
 
-  // ==========================================
-  // PHASE: GATE / LOADING
-  // ==========================================
+
   if (phase === 'gate' || phase === 'loading') {
     return (
       <div className="min-h-screen bg-slate-50 py-8 px-4">
@@ -748,9 +703,7 @@ export default function TakeSchoolExamPage() {
     )
   }
 
-  // ==========================================
-  // PHASE: SUBMITTING
-  // ==========================================
+
   if (phase === 'submitting') {
     return (
       <div className="grid min-h-screen place-items-center bg-slate-50">
@@ -763,9 +716,7 @@ export default function TakeSchoolExamPage() {
     )
   }
 
-  // ==========================================
-  // PHASE: RESULT
-  // ==========================================
+
   if (phase === 'result' && result) {
     return (
       <div className="min-h-screen bg-slate-50 py-12 px-4">
@@ -830,9 +781,7 @@ export default function TakeSchoolExamPage() {
     )
   }
 
-  // ==========================================
-  // PHASE: EXAM
-  // ==========================================
+
   if (!snapshot || !currentQuestion) {
     return (
       <div className="grid min-h-screen place-items-center bg-slate-50">
@@ -1208,10 +1157,6 @@ export default function TakeSchoolExamPage() {
     </div>
   )
 }
-
-// ==========================================
-// HELPERS
-// ==========================================
 
 function getErrorMessage(e: unknown): string {
   if (axios.isAxiosError(e)) {
