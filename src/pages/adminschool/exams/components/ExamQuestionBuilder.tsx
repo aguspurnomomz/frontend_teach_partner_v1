@@ -76,10 +76,10 @@ export default function ExamQuestionBuilder({ data, onChange, onBack, onNext }: 
       <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-tp-border bg-white p-4">
         <div className="flex items-center gap-2">
           <span className="rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700">
-            📘 {totalMCQ} PG
+            {totalMCQ} Pilihan Ganda
           </span>
           <span className="rounded-lg bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-700">
-            ✍️ {totalEssay} Essay
+            {totalEssay} Essay
           </span>
           <span className="rounded-lg bg-tp-green/10 px-3 py-1.5 text-xs font-semibold text-tp-green">
             Total: {totalScore} poin

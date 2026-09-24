@@ -1,7 +1,7 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import axios from 'axios'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, Copy, X } from 'lucide-react'
+import { ArrowLeft, Copy, X, Save, Trash2, RotateCcw } from 'lucide-react'
 import { supabase } from '../../../lib/supabaseClient'
 import ExamStepper from './components/ExamStepper'
 import ExamInfoForm from './components/ExamInfoForm'
@@ -17,11 +17,68 @@ const DEFAULT_DATA = {
   phase: '',
   academic_year_id: '',
   duration_minutes: 60,
-  passing_score: 70,
-  scoring_config: { multiple_choice: 1, essay: 5, essay_rubric: 'manual' },
+  passing_score: 0,
+  scoring_config: { multiple_choice: 10, essay: 5, essay_rubric: 'manual' },
   questions: [],
   targets: [],
 }
+
+// ============================================================
+// DRAFT STORAGE
+// ============================================================
+const DRAFT_KEY = 'school_admin_exam_draft_v1'
+const DRAFT_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000 // 7 hari
+
+type StoredDraft = {
+  data: any
+  step: number
+  savedAt: number
+}
+
+function readDraft(): StoredDraft | null {
+  try {
+    const raw = localStorage.getItem(DRAFT_KEY)
+    if (!raw) return null
+    const parsed: StoredDraft = JSON.parse(raw)
+    if (!parsed?.data || !parsed?.savedAt) return null
+    if (Date.now() - parsed.savedAt > DRAFT_MAX_AGE_MS) {
+      localStorage.removeItem(DRAFT_KEY)
+      return null
+    }
+    return parsed
+  } catch {
+    return null
+  }
+}
+
+function writeDraft(payload: StoredDraft) {
+  try {
+    localStorage.setItem(DRAFT_KEY, JSON.stringify(payload))
+  } catch {
+    // ignore quota
+  }
+}
+
+function clearDraft() {
+  try {
+    localStorage.removeItem(DRAFT_KEY)
+  } catch {
+    // ignore
+  }
+}
+
+function isDataEmpty(d: any): boolean {
+  if (!d) return true
+  return (
+    !d.title?.trim() &&
+    !d.description?.trim() &&
+    !d.subject?.trim() &&
+    (d.questions?.length ?? 0) === 0 &&
+    (d.targets?.length ?? 0) === 0
+  )
+}
+
+// ============================================================
 
 export default function CreateExamPage() {
   const navigate = useNavigate()
@@ -35,8 +92,20 @@ export default function CreateExamPage() {
 
   const [duplicateSource, setDuplicateSource] = useState<string | null>(null)
 
-  const duplicateHandledRef = useRef(false)
+  // Draft-related state
+  const [draftRestored, setDraftRestored] = useState(false)
+  const [lastSavedAt, setLastSavedAt] = useState<number | null>(null)
+  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false)
+  const pendingLeaveRef = useRef<string | null>(null)
 
+  const duplicateHandledRef = useRef(false)
+  const draftRestoredRef = useRef(false)
+  const isDirtyRef = useRef(false)
+  const skipNextAutosaveRef = useRef(false)
+
+  // ============================================================
+  // 1) DUPLICATE MODE — diproses SEBELUM restore draft
+  // ============================================================
   useEffect(() => {
     if (duplicateHandledRef.current) return
 
@@ -53,7 +122,7 @@ export default function CreateExamPage() {
     try {
       const exam = JSON.parse(src)
 
-      setData({
+      const nextData = {
         title: `${exam.title || 'Ujian'} (Copy)`,
         description: exam.description || '',
         subject: exam.subject || '',
@@ -64,7 +133,7 @@ export default function CreateExamPage() {
         duration_minutes: exam.duration_minutes || 60,
         passing_score: exam.passing_score ?? 70,
         scoring_config: exam.scoring_config || {
-          multiple_choice: 1,
+          multiple_choice: 10,
           essay: 5,
           essay_rubric: 'manual',
         },
@@ -77,9 +146,16 @@ export default function CreateExamPage() {
           class_group_id: t.class_group_id || '',
           class_sub_group_id: t.class_sub_group_id || '',
         })),
-      })
+      }
 
+      // Buang draft lama supaya tidak menimpa data duplikat
+      clearDraft()
+      skipNextAutosaveRef.current = false
+
+      setData(nextData)
+      isDirtyRef.current = true
       setDuplicateSource(exam.title || 'Ujian')
+      draftRestoredRef.current = true // tandai agar restore draft di-skip
     } catch (e) {
       console.error('Gagal parsing exam_duplicate_source:', e)
       setError('Gagal memuat data duplikat. Silakan buat ujian baru dari awal.')
@@ -89,9 +165,75 @@ export default function CreateExamPage() {
       setSearchParams(searchParams, { replace: true })
       duplicateHandledRef.current = true
     }
-  }, [searchParams, setSearchParams])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
+  // ============================================================
+  // 2) RESTORE DRAFT dari localStorage (hanya jika bukan mode duplikat)
+  // ============================================================
+  useEffect(() => {
+    if (draftRestoredRef.current) return
+    if (duplicateHandledRef.current) return // mode duplikat menang
 
+    const draft = readDraft()
+    if (!draft) {
+      draftRestoredRef.current = true
+      return
+    }
+
+    // Jangan restore kalau draft kosong (mis. user cuma buka form lalu tutup)
+    if (isDataEmpty(draft.data)) {
+      clearDraft()
+      draftRestoredRef.current = true
+      return
+    }
+
+    setData(draft.data)
+    setStep(Math.min(Math.max(draft.step || 1, 1), 3))
+    setLastSavedAt(draft.savedAt)
+    setDraftRestored(true)
+    isDirtyRef.current = true
+    draftRestoredRef.current = true
+  }, [])
+
+  // ============================================================
+  // 3) AUTO-SAVE debounced setiap `data` / `step` berubah
+  // ============================================================
+  useEffect(() => {
+    if (!draftRestoredRef.current) return // tunggu restore selesai
+    if (skipNextAutosaveRef.current) {
+      skipNextAutosaveRef.current = false
+      return
+    }
+
+    // Jangan simpan kalau benar-benar kosong (hindari draft "kosong")
+    if (isDataEmpty(data)) return
+
+    const t = setTimeout(() => {
+      writeDraft({ data, step, savedAt: Date.now() })
+      setLastSavedAt(Date.now())
+    }, 800)
+
+    return () => clearTimeout(t)
+  }, [data, step])
+
+  // ============================================================
+  // 4) BEFOREUNLOAD — cegah close tab saat ada perubahan
+  // ============================================================
+  useEffect(() => {
+    const handler = (e: BeforeUnloadEvent) => {
+      if (!isDirtyRef.current) return
+      if (isDataEmpty(data)) return
+      e.preventDefault()
+      e.returnValue = ''
+    }
+    window.addEventListener('beforeunload', handler)
+    return () => window.removeEventListener('beforeunload', handler)
+  }, [data])
+
+  // ============================================================
+  // 5) SAVE
+  // ============================================================
   const handleSave = async (publish: boolean) => {
     setSubmitting(true)
     setError(null)
@@ -121,6 +263,11 @@ export default function CreateExamPage() {
         )
       }
 
+      // Sukses — bersihkan draft & tandai tidak dirty
+      clearDraft()
+      isDirtyRef.current = false
+      setLastSavedAt(null)
+
       navigate('/school-admin/dashboard/exams')
     } catch (e: any) {
       setError(e.response?.data?.error || e.message)
@@ -129,9 +276,57 @@ export default function CreateExamPage() {
     }
   }
 
+  // ============================================================
+  // 6) NAVIGASI dengan konfirmasi kalau ada perubahan
+  // ============================================================
+  const goBack = useCallback(() => {
+    if (isDirtyRef.current && !isDataEmpty(data)) {
+      pendingLeaveRef.current = '/school-admin/dashboard/exams'
+      setShowLeaveConfirm(true)
+      return
+    }
+    navigate('/school-admin/dashboard/exams')
+  }, [data, navigate])
+
+  const confirmLeave = () => {
+    isDirtyRef.current = false
+    const dest = pendingLeaveRef.current || '/school-admin/dashboard/exams'
+    pendingLeaveRef.current = null
+    setShowLeaveConfirm(false)
+    navigate(dest)
+  }
+
+  // ============================================================
+  // 7) AKSI DRAFT
+  // ============================================================
   const dismissDuplicateBanner = () => {
     setDuplicateSource(null)
   }
+
+  const handleDiscardDraft = () => {
+    if (!confirm('Buang draft yang tersimpan? Semua isian akan hilang.')) return
+    clearDraft()
+    setData(DEFAULT_DATA)
+    setStep(1)
+    setDraftRestored(false)
+    setLastSavedAt(null)
+    isDirtyRef.current = false
+    draftRestoredRef.current = true
+  }
+
+  const dismissRestoredBanner = () => {
+    setDraftRestored(false)
+  }
+
+  // ============================================================
+  // RENDER
+  // ============================================================
+  const savedLabel = lastSavedAt
+    ? `Tersimpan ${new Date(lastSavedAt).toLocaleTimeString('id-ID', {
+        hour: '2-digit',
+        minute: '2-digit',
+      })}`
+    : null
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
@@ -139,7 +334,7 @@ export default function CreateExamPage() {
       <div className="flex items-center gap-3">
         <button
           type="button"
-          onClick={() => navigate('/school-admin/dashboard/exams')}
+          onClick={goBack}
           className="grid h-9 w-9 place-items-center rounded-xl border border-tp-border bg-white text-tp-muted hover:bg-slate-50"
         >
           <ArrowLeft size={16} />
@@ -154,6 +349,14 @@ export default function CreateExamPage() {
               : 'Susun soal PG dan Essay dalam satu ujian'}
           </p>
         </div>
+
+        {/* Indikator tersimpan */}
+        {savedLabel && (
+          <div className="hidden items-center gap-1.5 rounded-lg bg-emerald-50 px-2.5 py-1.5 text-[11px] font-medium text-emerald-700 sm:flex">
+            <Save size={12} />
+            {savedLabel}
+          </div>
+        )}
       </div>
 
       {/* Banner duplicate info */}
@@ -161,9 +364,7 @@ export default function CreateExamPage() {
         <div className="flex items-start gap-3 rounded-xl border border-blue-200 bg-blue-50 p-3.5">
           <Copy size={16} className="mt-0.5 shrink-0 text-blue-600" />
           <div className="min-w-0 flex-1">
-            <p className="text-xs font-bold text-blue-900">
-              Mode Duplikat
-            </p>
+            <p className="text-xs font-bold text-blue-900">Mode Duplikat</p>
             <p className="text-[11px] text-blue-700">
               Semua data soal dari <b>"{duplicateSource}"</b> sudah disalin ke form ini.
               Silakan edit dan simpan sebagai ujian baru.
@@ -176,6 +377,37 @@ export default function CreateExamPage() {
           >
             <X size={14} />
           </button>
+        </div>
+      )}
+
+      {/* Banner draft dipulihkan */}
+      {draftRestored && (
+        <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3.5">
+          <RotateCcw size={16} className="mt-0.5 shrink-0 text-amber-600" />
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-bold text-amber-900">Draft Dipulihkan</p>
+            <p className="text-[11px] text-amber-700">
+              Kami menemukan draft ujian yang belum tersimpan di perangkat ini dan
+              memulihkannya otomatis.
+            </p>
+          </div>
+          <div className="flex shrink-0 items-center gap-1">
+            <button
+              type="button"
+              onClick={handleDiscardDraft}
+              className="inline-flex items-center gap-1 rounded-lg border border-amber-300 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-amber-700 hover:bg-amber-100"
+            >
+              <Trash2 size={12} /> Buang
+            </button>
+            <button
+              type="button"
+              onClick={dismissRestoredBanner}
+              className="grid h-7 w-7 place-items-center rounded-lg text-amber-600 hover:bg-amber-100"
+              aria-label="Tutup"
+            >
+              <X size={14} />
+            </button>
+          </div>
         </div>
       )}
 
@@ -209,6 +441,41 @@ export default function CreateExamPage() {
           onPublish={() => handleSave(true)}
           submitting={submitting}
         />
+      )}
+
+      {/* Modal konfirmasi keluar */}
+      {showLeaveConfirm && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            onClick={() => setShowLeaveConfirm(false)}
+          />
+          <div className="relative w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+            <h3 className="mb-2 text-center text-lg font-bold text-gray-900">
+              Keluar dari Form?
+            </h3>
+            <p className="mb-6 text-center text-sm text-gray-600">
+              Perubahan Anda sudah tersimpan sebagai <b>draft lokal</b> di perangkat ini.
+              Anda bisa melanjutkannya nanti.
+            </p>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setShowLeaveConfirm(false)}
+                className="flex-1 rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+              >
+                Lanjut Isi
+              </button>
+              <button
+                type="button"
+                onClick={confirmLeave}
+                className="flex-1 rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-rose-700"
+              >
+                Ya, Keluar
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

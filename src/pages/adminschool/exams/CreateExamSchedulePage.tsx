@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import axios from 'axios'
 import { useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, Clock, MapPin, Users, Lock,
   RefreshCw, AlertCircle, Sparkles, FileText,
+  Save, Trash2, RotateCcw, CheckCircle2, XCircle,
 } from 'lucide-react'
 import { supabase } from '../../../lib/supabaseClient'
 
@@ -48,11 +49,68 @@ type ScheduleFormData = {
   require_login: boolean
 }
 
+type AccessCodeStatus =
+  | { state: 'idle' }
+  | { state: 'checking' }
+  | { state: 'available' }
+  | { state: 'taken'; usedCount: number }
+  | { state: 'error'; message: string }
 
 const SUPERVISOR_SUGGESTIONS = [
   'Guru A', 'Guru Pengawas A', 'Guru Pengawas B', 'Guru Pengawas C', 'Guru Pengawas D',
 ]
 
+const DRAFT_KEY = 'school_admin_exam_schedule_draft_v1'
+const DRAFT_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000 // 7 hari
+
+type StoredDraft = {
+  form: ScheduleFormData
+  mode: 'pick' | 'custom'
+  savedAt: number
+}
+
+function readDraft(): StoredDraft | null {
+  try {
+    const raw = localStorage.getItem(DRAFT_KEY)
+    if (!raw) return null
+    const parsed: StoredDraft = JSON.parse(raw)
+    if (!parsed?.form || !parsed?.savedAt) return null
+    if (Date.now() - parsed.savedAt > DRAFT_MAX_AGE_MS) {
+      localStorage.removeItem(DRAFT_KEY)
+      return null
+    }
+    return parsed
+  } catch {
+    return null
+  }
+}
+
+function writeDraft(payload: StoredDraft) {
+  try {
+    localStorage.setItem(DRAFT_KEY, JSON.stringify(payload))
+  } catch {
+    // ignore quota
+  }
+}
+
+function clearDraft() {
+  try {
+    localStorage.removeItem(DRAFT_KEY)
+  } catch {
+    // ignore
+  }
+}
+
+function isFormEmpty(f: ScheduleFormData): boolean {
+  if (!f) return true
+  return (
+    !f.exam_id &&
+    f.selected_targets.length === 0 &&
+    !f.room.trim() &&
+    !f.supervisor_name.trim() &&
+    !f.session_notes.trim()
+  )
+}
 
 
 export default function CreateExamSchedulePage() {
@@ -83,18 +141,84 @@ export default function CreateExamSchedulePage() {
     require_login: false,
   })
 
-  // State khusus input durasi (string biar tidak ada bug 0120)
+
   const [durationInput, setDurationInput] = useState('90')
 
+  const [accessCodeStatus, setAccessCodeStatus] = useState<AccessCodeStatus>({ state: 'idle' })
+
+  const [draftRestored, setDraftRestored] = useState(false)
+  const [lastSavedAt, setLastSavedAt] = useState<number | null>(null)
+  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false)
+
+  const draftRestoredRef = useRef(false)
+  const isDirtyRef = useRef(false)
+  const skipNextAutosaveRef = useRef(false)
+  const accessCodeCheckTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const pendingLeaveRef = useRef<string | null>(null)
 
   const setField = <K extends keyof ScheduleFormData>(
     key: K,
     value: ScheduleFormData[K]
   ) => {
     setForm((prev) => ({ ...prev, [key]: value }))
+    isDirtyRef.current = true
   }
 
+  useEffect(() => {
+    if (draftRestoredRef.current) return
 
+    const draft = readDraft()
+    if (!draft) {
+      draftRestoredRef.current = true
+      return
+    }
+
+    if (isFormEmpty(draft.form)) {
+      clearDraft()
+      draftRestoredRef.current = true
+      return
+    }
+
+    setForm(draft.form)
+    setMode(draft.mode || 'pick')
+    setDurationInput(String(draft.form.duration_minutes || 90))
+    setLastSavedAt(draft.savedAt)
+    setDraftRestored(true)
+    isDirtyRef.current = true
+    draftRestoredRef.current = true
+  }, [])
+
+
+  useEffect(() => {
+    if (!draftRestoredRef.current) return
+    if (skipNextAutosaveRef.current) {
+      skipNextAutosaveRef.current = false
+      return
+    }
+
+    if (isFormEmpty(form)) return
+
+    const t = setTimeout(() => {
+      writeDraft({ form, mode, savedAt: Date.now() })
+      setLastSavedAt(Date.now())
+    }, 800)
+
+    return () => clearTimeout(t)
+  }, [form, mode])
+
+
+  useEffect(() => {
+    const handler = (e: BeforeUnloadEvent) => {
+      if (!isDirtyRef.current) return
+      if (isFormEmpty(form)) return
+      e.preventDefault()
+      e.returnValue = ''
+    }
+    window.addEventListener('beforeunload', handler)
+    return () => window.removeEventListener('beforeunload', handler)
+  }, [form])
+
+ 
   useEffect(() => {
     const fetchExams = async () => {
       setLoading(true)
@@ -119,6 +243,15 @@ export default function CreateExamSchedulePage() {
 
 
   useEffect(() => {
+    if (!form.exam_id || exams.length === 0) return
+    if (selectedExam?.id === form.exam_id) return
+
+    const found = exams.find((e) => e.id === form.exam_id)
+    if (found) setSelectedExam(found)
+  }, [form.exam_id, exams, selectedExam])
+
+
+  useEffect(() => {
     if (!selectedExam) {
       setAvailableTargets([])
       return
@@ -127,15 +260,6 @@ export default function CreateExamSchedulePage() {
     const fetchTargets = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession()
-        const subGroupIds = selectedExam.targets
-          .map((t) => t.class_sub_group_id)
-          .filter((id): id is string => !!id)
-
-        if (subGroupIds.length === 0) {
-          setAvailableTargets([])
-          return
-        }
-
         const res = await axios.get<{ targets: SubClassTarget[] }>(
           `${API_URL}/api/school-admin/exam-schedules/available-targets`,
           {
@@ -150,14 +274,11 @@ export default function CreateExamSchedulePage() {
     }
     fetchTargets()
 
-    // Sync duration dari soal
-    setField('duration_minutes', selectedExam.duration_minutes)
-    setDurationInput(String(selectedExam.duration_minutes))
-
-    // Kalau strict, sync end_time
-    if (form.duration_mode === 'strict') {
-      const newEnd = addMinutes(form.start_time, selectedExam.duration_minutes)
-      setField('end_time', newEnd)
+    // Sync duration dari soal — HANYA jika form belum pernah diubah user
+    // (artinya: kalau draft restore, jangan override duration dari exam)
+    if (!isDirtyRef.current || form.duration_minutes === 0) {
+      setField('duration_minutes', selectedExam.duration_minutes)
+      setDurationInput(String(selectedExam.duration_minutes))
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedExam])
@@ -170,7 +291,9 @@ export default function CreateExamSchedulePage() {
       form.duration_minutes > 0
     ) {
       const end = addMinutes(form.start_time, form.duration_minutes)
-      if (end !== form.end_time) setField('end_time', end)
+      if (end !== form.end_time) {
+        setForm((prev) => ({ ...prev, end_time: end }))
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.start_time, form.duration_minutes, form.duration_mode])
@@ -185,10 +308,9 @@ export default function CreateExamSchedulePage() {
       const start = parseTimeToMinutes(form.start_time)
       const end = parseTimeToMinutes(form.end_time)
       let diff = end - start
-      // Handle kalau lewat tengah malam
       if (diff < 0) diff += 24 * 60
       if (diff > 0 && diff !== form.duration_minutes) {
-        setField('duration_minutes', diff)
+        setForm((prev) => ({ ...prev, duration_minutes: diff }))
         setDurationInput(String(diff))
       }
     }
@@ -196,6 +318,50 @@ export default function CreateExamSchedulePage() {
   }, [form.start_time, form.end_time, form.duration_mode])
 
 
+  useEffect(() => {
+    // Clear timer sebelumnya
+    if (accessCodeCheckTimerRef.current) {
+      clearTimeout(accessCodeCheckTimerRef.current)
+      accessCodeCheckTimerRef.current = null
+    }
+
+    const code = form.access_code.trim().toUpperCase()
+    if (!code || code.length < 4) {
+      setAccessCodeStatus({ state: 'idle' })
+      return
+    }
+
+    setAccessCodeStatus({ state: 'checking' })
+
+    accessCodeCheckTimerRef.current = setTimeout(async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        const res = await axios.get<{ available: boolean; used_count: number }>(
+          `${API_URL}/api/school-admin/exam-schedules/check-access-code`,
+          {
+            params: { code },
+            headers: { Authorization: `Bearer ${session?.access_token}` },
+          }
+        )
+        if (res.data.available) {
+          setAccessCodeStatus({ state: 'available' })
+        } else {
+          setAccessCodeStatus({ state: 'taken', usedCount: res.data.used_count })
+        }
+      } catch (e: unknown) {
+        // Kalau endpoint belum ada, fallback ke idle (jangan blok user)
+        setAccessCodeStatus({ state: 'idle' })
+      }
+    }, 500)
+
+    return () => {
+      if (accessCodeCheckTimerRef.current) {
+        clearTimeout(accessCodeCheckTimerRef.current)
+      }
+    }
+  }, [form.access_code, API_URL])
+
+  
   const toggleTarget = (subGroupId: string) => {
     setForm((prev) => {
       const exists = prev.selected_targets.includes(subGroupId)
@@ -206,8 +372,8 @@ export default function CreateExamSchedulePage() {
           : [...prev.selected_targets, subGroupId],
       }
     })
+    isDirtyRef.current = true
   }
-
 
   const totalStudents = availableTargets
     .filter((t) => form.selected_targets.includes(t.class_sub_group_id))
@@ -219,7 +385,10 @@ export default function CreateExamSchedulePage() {
     form.start_time &&
     form.end_time &&
     form.duration_minutes > 0 &&
-    form.selected_targets.length > 0
+    form.selected_targets.length > 0 &&
+    form.access_code.trim().length >= 4 &&
+    accessCodeStatus.state !== 'taken'
+
 
   const handleSubmit = async () => {
     if (!canSubmit) return
@@ -238,19 +407,95 @@ export default function CreateExamSchedulePage() {
         room: form.room,
         supervisor_name: form.supervisor_name,
         session_notes: form.session_notes,
-        access_code: form.access_code,
+        access_code: form.access_code.trim().toUpperCase(),
         require_login: form.require_login,
       }
       await axios.post(`${API_URL}/api/school-admin/exam-schedules`, payload, {
         headers: { Authorization: `Bearer ${session?.access_token}` },
       })
+
+      // Sukses — bersihkan draft & tandai tidak dirty
+      clearDraft()
+      isDirtyRef.current = false
+      setLastSavedAt(null)
       navigate('/school-admin/dashboard/exam-schedules')
     } catch (e: unknown) {
-      setError(getErrorMessage(e))
+      const msg = getErrorMessage(e)
+
+      // Deteksi konflik access_code
+      if (isAccessCodeConflict(msg)) {
+        const newCode = generateAccessCode()
+        setForm((prev) => ({ ...prev, access_code: newCode }))
+        setAccessCodeStatus({ state: 'idle' })
+        setError(
+          `Kode akses '${form.access_code}' sudah dipakai. Kode baru sudah di-generate: ${newCode}. Silakan submit ulang.`
+        )
+      } else {
+        setError(msg)
+      }
     } finally {
       setSubmitting(false)
     }
   }
+
+
+  const goBack = useCallback(() => {
+    if (isDirtyRef.current && !isFormEmpty(form)) {
+      pendingLeaveRef.current = '/school-admin/dashboard/exam-schedules'
+      setShowLeaveConfirm(true)
+      return
+    }
+    navigate('/school-admin/dashboard/exam-schedules')
+  }, [form, navigate])
+
+  const confirmLeave = () => {
+    isDirtyRef.current = false
+    const dest = pendingLeaveRef.current || '/school-admin/dashboard/exam-schedules'
+    pendingLeaveRef.current = null
+    setShowLeaveConfirm(false)
+    navigate(dest)
+  }
+
+
+  const handleDiscardDraft = () => {
+    if (!confirm('Buang draft jadwal yang tersimpan? Semua isian akan hilang.')) return
+    clearDraft()
+    setForm({
+      exam_id: '',
+      schedule_date: new Date().toISOString().slice(0, 10),
+      start_time: '07:00',
+      end_time: '08:30',
+      duration_mode: 'strict',
+      duration_minutes: 90,
+      selected_targets: [],
+      room: '',
+      supervisor_name: '',
+      session_notes: '',
+      access_code: generateAccessCode(),
+      require_login: false,
+    })
+    setDurationInput('90')
+    setSelectedExam(null)
+    setAvailableTargets([])
+    setMode('pick')
+    setDraftRestored(false)
+    setLastSavedAt(null)
+    setAccessCodeStatus({ state: 'idle' })
+    isDirtyRef.current = false
+    draftRestoredRef.current = true
+  }
+
+  const dismissRestoredBanner = () => {
+    setDraftRestored(false)
+  }
+
+  const regenerateAccessCode = () => {
+    const newCode = generateAccessCode()
+    setField('access_code', newCode)
+    setAccessCodeStatus({ state: 'idle' })
+    setError(null)
+  }
+
 
   if (loading) {
     return (
@@ -258,7 +503,7 @@ export default function CreateExamSchedulePage() {
         <div className="flex items-center gap-3">
           <button
             type="button"
-            onClick={() => navigate('/school-admin/dashboard/exam-schedules')}
+            onClick={goBack}
             className="grid h-9 w-9 place-items-center rounded-xl border border-tp-border bg-white text-tp-muted hover:bg-slate-50"
           >
             <ArrowLeft size={16} />
@@ -270,6 +515,15 @@ export default function CreateExamSchedulePage() {
     )
   }
 
+
+  const savedLabel = lastSavedAt
+    ? `Tersimpan ${new Date(lastSavedAt).toLocaleTimeString('id-ID', {
+        hour: '2-digit',
+        minute: '2-digit',
+      })}`
+    : null
+
+
   return (
     <div className="mx-auto max-w-4xl space-y-6">
       {/* ==========================================
@@ -278,24 +532,71 @@ export default function CreateExamSchedulePage() {
       <div className="flex items-center gap-3">
         <button
           type="button"
-          onClick={() => navigate('/school-admin/dashboard/exam-schedules')}
+          onClick={goBack}
           className="grid h-9 w-9 place-items-center rounded-xl border border-tp-border bg-white text-tp-muted hover:bg-slate-50"
         >
           <ArrowLeft size={16} />
         </button>
-        <div>
+        <div className="min-w-0 flex-1">
           <h1 className="text-lg font-bold text-tp-text">Buat Jadwal Ujian</h1>
-          <p className="text-xs text-tp-muted">
+          <p className="truncate text-xs text-tp-muted">
             Tentukan waktu, peserta, dan akses ujian
           </p>
         </div>
+
+        {/* Indikator tersimpan */}
+        {savedLabel && (
+          <div className="hidden items-center gap-1.5 rounded-lg bg-emerald-50 px-2.5 py-1.5 text-[11px] font-medium text-emerald-700 sm:flex">
+            <Save size={12} />
+            {savedLabel}
+          </div>
+        )}
       </div>
+
+      {/* Banner draft dipulihkan */}
+      {draftRestored && (
+        <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3.5">
+          <RotateCcw size={16} className="mt-0.5 shrink-0 text-amber-600" />
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-bold text-amber-900">Draft Dipulihkan</p>
+            <p className="text-[11px] text-amber-700">
+              Kami menemukan draft jadwal ujian yang belum tersimpan di perangkat
+              ini dan memulihkannya otomatis.
+            </p>
+          </div>
+          <div className="flex shrink-0 items-center gap-1">
+            <button
+              type="button"
+              onClick={handleDiscardDraft}
+              className="inline-flex items-center gap-1 rounded-lg border border-amber-300 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-amber-700 hover:bg-amber-100"
+            >
+              <Trash2 size={12} /> Buang
+            </button>
+            <button
+              type="button"
+              onClick={dismissRestoredBanner}
+              className="grid h-7 w-7 place-items-center rounded-lg text-amber-600 hover:bg-amber-100"
+              aria-label="Tutup"
+            >
+              <XCircle size={14} />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Error */}
       {error && (
         <div className="flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700">
           <AlertCircle size={14} className="mt-0.5 shrink-0" />
-          {error}
+          <span className="flex-1">{error}</span>
+          <button
+            type="button"
+            onClick={() => setError(null)}
+            className="shrink-0 text-rose-500 hover:text-rose-700"
+            aria-label="Tutup"
+          >
+            <XCircle size={14} />
+          </button>
         </div>
       )}
 
@@ -351,9 +652,13 @@ export default function CreateExamSchedulePage() {
                     key={e.id}
                     type="button"
                     onClick={() => {
-                      setField('exam_id', e.id)
+                      setForm((prev) => ({
+                        ...prev,
+                        exam_id: e.id,
+                        selected_targets: [],
+                      }))
                       setSelectedExam(e)
-                      setField('selected_targets', [])
+                      isDirtyRef.current = true
                     }}
                     className={`flex w-full items-start gap-3 rounded-xl border p-4 text-left transition ${
                       isSelected
@@ -418,7 +723,7 @@ export default function CreateExamSchedulePage() {
                       form.start_time,
                       form.duration_minutes
                     )
-                    setField('end_time', newEnd)
+                    setForm((prev) => ({ ...prev, end_time: newEnd }))
                   }}
                   className={`flex items-start gap-3 rounded-xl border p-3.5 text-left transition ${
                     form.duration_mode === 'strict'
@@ -527,20 +832,16 @@ export default function CreateExamSchedulePage() {
                   inputMode="numeric"
                   value={durationInput}
                   onChange={(e) => {
-                    // Hanya izinkan angka
                     const raw = e.target.value.replace(/[^0-9]/g, '')
                     setDurationInput(raw)
-
                     const parsed = raw === '' ? 0 : parseInt(raw, 10)
                     setField('duration_minutes', parsed)
                   }}
                   onBlur={() => {
-                    // Reset kalau kosong atau 0
                     if (!durationInput || parseInt(durationInput, 10) === 0) {
                       setDurationInput('60')
                       setField('duration_minutes', 60)
                     } else {
-                      // Normalize: hilangkan leading zero
                       const normalized = String(parseInt(durationInput, 10))
                       setDurationInput(normalized)
                       setField('duration_minutes', parseInt(normalized, 10))
@@ -716,28 +1017,64 @@ export default function CreateExamSchedulePage() {
                 Kode Akses
               </label>
               <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={form.access_code}
-                  onChange={(e) =>
-                    setField('access_code', e.target.value.toUpperCase())
-                  }
-                  maxLength={10}
-                  className="flex-1 rounded-xl border border-tp-border px-3.5 py-2.5 font-mono text-sm font-bold tracking-wider focus:border-tp-green focus:outline-none"
-                />
+                <div className="relative flex-1">
+                  <input
+                    type="text"
+                    value={form.access_code}
+                    onChange={(e) => {
+                      setField('access_code', e.target.value.toUpperCase())
+                      setAccessCodeStatus({ state: 'idle' })
+                    }}
+                    maxLength={12}
+                    className={`w-full rounded-xl border px-3.5 py-2.5 pr-10 font-mono text-sm font-bold tracking-wider focus:outline-none ${
+                      accessCodeStatus.state === 'taken'
+                        ? 'border-rose-400 bg-rose-50 focus:border-rose-500'
+                        : accessCodeStatus.state === 'available'
+                        ? 'border-emerald-400 bg-emerald-50 focus:border-emerald-500'
+                        : 'border-tp-border focus:border-tp-green'
+                    }`}
+                  />
+                  {/* Status icon di kanan input */}
+                  <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2">
+                    {accessCodeStatus.state === 'checking' && (
+                      <RefreshCw size={14} className="animate-spin text-tp-muted" />
+                    )}
+                    {accessCodeStatus.state === 'available' && (
+                      <CheckCircle2 size={14} className="text-emerald-600" />
+                    )}
+                    {accessCodeStatus.state === 'taken' && (
+                      <XCircle size={14} className="text-rose-600" />
+                    )}
+                  </span>
+                </div>
                 <button
                   type="button"
-                  onClick={() =>
-                    setField('access_code', generateAccessCode())
-                  }
+                  onClick={regenerateAccessCode}
                   className="inline-flex items-center gap-1.5 rounded-xl border border-tp-border bg-white px-4 py-2.5 text-xs font-semibold text-tp-muted hover:bg-slate-50"
                 >
                   <RefreshCw size={12} /> Generate
                 </button>
               </div>
-              <p className="mt-1.5 text-[10px] text-tp-faint">
-                Bagikan kode ini ke siswa untuk masuk ujian
-              </p>
+
+              {/* Status message */}
+              {accessCodeStatus.state === 'taken' && (
+                <p className="mt-1.5 flex items-center gap-1 text-[11px] text-rose-600">
+                  <XCircle size={11} />
+                  Kode akses sudah dipakai ({accessCodeStatus.usedCount} jadwal
+                  aktif). Generate ulang atau ubah kode.
+                </p>
+              )}
+              {accessCodeStatus.state === 'available' && (
+                <p className="mt-1.5 flex items-center gap-1 text-[11px] text-emerald-600">
+                  <CheckCircle2 size={11} />
+                  Kode akses tersedia.
+                </p>
+              )}
+              {accessCodeStatus.state === 'idle' && (
+                <p className="mt-1.5 text-[10px] text-tp-faint">
+                  Bagikan kode ini ke siswa untuk masuk ujian
+                </p>
+              )}
             </div>
 
             <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-xl border border-tp-border p-3.5">
@@ -767,7 +1104,7 @@ export default function CreateExamSchedulePage() {
       <div className="flex flex-wrap justify-between gap-3 pt-2">
         <button
           type="button"
-          onClick={() => navigate('/school-admin/dashboard/exam-schedules')}
+          onClick={goBack}
           disabled={submitting}
           className="rounded-xl border border-tp-border bg-white px-5 py-2.5 text-sm font-semibold text-tp-muted hover:bg-slate-50 disabled:opacity-50"
         >
@@ -782,6 +1119,43 @@ export default function CreateExamSchedulePage() {
           {submitting ? 'Menyimpan...' : 'Buat Jadwal'}
         </button>
       </div>
+
+      {/* ==========================================
+          Modal konfirmasi keluar
+      ========================================== */}
+      {showLeaveConfirm && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            onClick={() => setShowLeaveConfirm(false)}
+          />
+          <div className="relative w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+            <h3 className="mb-2 text-center text-lg font-bold text-gray-900">
+              Keluar dari Form?
+            </h3>
+            <p className="mb-6 text-center text-sm text-gray-600">
+              Perubahan Anda sudah tersimpan sebagai <b>draft lokal</b> di
+              perangkat ini. Anda bisa melanjutkannya nanti.
+            </p>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setShowLeaveConfirm(false)}
+                className="flex-1 rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+              >
+                Lanjut Isi
+              </button>
+              <button
+                type="button"
+                onClick={confirmLeave}
+                className="flex-1 rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-rose-700"
+              >
+                Ya, Keluar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -828,9 +1202,6 @@ function ModeCard({
   )
 }
 
-// ==========================================
-// Helpers
-// ==========================================
 
 function generateAccessCode(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
@@ -862,4 +1233,14 @@ function getErrorMessage(e: unknown): string {
   }
   if (e instanceof Error) return e.message
   return String(e)
+}
+
+function isAccessCodeConflict(msg: string): boolean {
+  const lower = msg.toLowerCase()
+  return (
+    lower.includes('kode akses') ||
+    lower.includes('access_code') ||
+    lower.includes('duplicate key') ||
+    lower.includes('23505')
+  )
 }
