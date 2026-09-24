@@ -9,9 +9,6 @@ import {
 } from 'lucide-react'
 import { supabase } from '../../../lib/supabaseClient'
 
-// ==========================================
-// TYPES
-// ==========================================
 
 type SubmissionStatus =
   | 'not_started'
@@ -75,9 +72,6 @@ type MonitorResponse = {
   }
 }
 
-// ==========================================
-// CONSTANTS
-// ==========================================
 
 const STATUS_CONFIG: Record<
   SubmissionStatus,
@@ -122,9 +116,6 @@ const STATUS_CONFIG: Record<
 
 type StatusFilter = 'all' | 'in_progress' | 'submitted' | 'graded' | 'not_started' | 'flagged'
 
-// ==========================================
-// MAIN COMPONENT
-// ==========================================
 
 export default function ExamMonitorPage() {
   const navigate = useNavigate()
@@ -149,9 +140,6 @@ export default function ExamMonitorPage() {
 
   const timerRef = useRef<number | null>(null)
 
-  // ==========================================
-  // Fetch monitor data
-  // ==========================================
   const fetchData = useCallback(
     async (silent = false) => {
       if (!scheduleId) return
@@ -180,9 +168,8 @@ export default function ExamMonitorPage() {
   // Initial fetch
   useEffect(() => {
     fetchData(false)
-  }, [scheduleId]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [scheduleId]) 
 
-  // Auto refresh countdown
   useEffect(() => {
     if (!autoRefresh) return
     if (timerRef.current) window.clearInterval(timerRef.current)
@@ -202,9 +189,6 @@ export default function ExamMonitorPage() {
     }
   }, [autoRefresh, refreshInterval, fetchData])
 
-  // ==========================================
-  // Actions
-  // ==========================================
   const handleClose = async () => {
     if (!scheduleId) return
     setClosing(true)
@@ -262,9 +246,6 @@ export default function ExamMonitorPage() {
     URL.revokeObjectURL(url)
   }
 
-  // ==========================================
-  // Filtered list
-  // ==========================================
   const filteredStudents = useMemo(() => {
     if (!data) return []
     let list = data.students
@@ -294,9 +275,6 @@ export default function ExamMonitorPage() {
     return list
   }, [data, statusFilter, search])
 
-  // ==========================================
-  // Loading state
-  // ==========================================
   if (loading) {
     return (
       <div className="mx-auto max-w-6xl">
@@ -317,9 +295,6 @@ export default function ExamMonitorPage() {
     )
   }
 
-  // ==========================================
-  // Error state
-  // ==========================================
   if (error || !data) {
     return (
       <div className="mx-auto max-w-6xl">
@@ -776,9 +751,6 @@ export default function ExamMonitorPage() {
   )
 }
 
-// ==========================================
-// SUB-COMPONENTS
-// ==========================================
 
 function StatCard({
   label,
@@ -844,9 +816,6 @@ function Td({
   )
 }
 
-// ==========================================
-// HELPERS
-// ==========================================
 
 function getErrorMessage(e: unknown): string {
   if (axios.isAxiosError(e)) {

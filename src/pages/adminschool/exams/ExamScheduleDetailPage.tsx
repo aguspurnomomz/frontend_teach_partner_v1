@@ -782,10 +782,6 @@ export default function ExamScheduleDetailPage() {
   )
 }
 
-// ==========================================
-// SUB-COMPONENTS
-// ==========================================
-
 function Section({
   icon,
   title,
@@ -957,9 +953,6 @@ function ConfirmModal({
   )
 }
 
-// ==========================================
-// HELPERS
-// ==========================================
 
 function getErrorMessage(e: unknown): string {
   if (axios.isAxiosError(e)) {

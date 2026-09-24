@@ -54,6 +54,9 @@ import ExamMonitorPage from './pages/adminschool/exams/ExamMonitorPage'
 
 import ExamScheduleDetailPage from './pages/adminschool/exams/ExamScheduleDetailPage'
 
+import ExamGradesPage from './pages/adminschool/exams/ExamGradesPage'
+import ExamSubmissionDetailPage from './pages/adminschool/exams/ExamSubmissionDetailPage'
+
 
 const ROLE_CACHE_KEY = 'tp_role_cache_v1'
 const ROLE_CACHE_TTL_MS = 5 * 60 * 1000 
@@ -397,6 +400,8 @@ export default function App() {
           <Route path="exam-schedules" element={<ExamSchedulePage />} />
           <Route path="exam-schedules/create" element={<CreateExamSchedulePage />} />
           <Route path="exam-schedules/:scheduleId/monitor" element={<ExamMonitorPage />} />
+          <Route path="exam-schedules/:scheduleId/grades" element={<ExamGradesPage />} />
+          <Route path="exam-schedules/:scheduleId/submissions/:submissionId" element={<ExamSubmissionDetailPage />} />
           <Route path="exam-schedules/:scheduleId/edit" element={<CreateExamSchedulePage />} />
           <Route path="exam-schedules/:scheduleId" element={<ExamScheduleDetailPage />} />
           {/* ================== */}

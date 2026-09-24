@@ -18,9 +18,6 @@ export default function ExamAccessPanel({
 }: Props) {
   const [copiedType, setCopiedType] = useState<'link' | 'code' | null>(null)
 
-  // ==========================================
-  // Generate URLs
-  // ==========================================
   const examUrl = useMemo(() => {
     const baseUrl = window.location.origin
     return `${baseUrl}/school-exam?code=${accessCode}`
@@ -33,9 +30,7 @@ export default function ExamAccessPanel({
     return `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encoded}&margin=10`
   }, [examUrl])
 
-  // ==========================================
-  // Copy helpers
-  // ==========================================
+
   const handleCopy = async (text: string, type: 'link' | 'code') => {
     try {
       await navigator.clipboard.writeText(text)
@@ -54,9 +49,6 @@ export default function ExamAccessPanel({
     }
   }
 
-  // ==========================================
-  // Download QR as PNG
-  // ==========================================
   const handleDownloadQR = async () => {
     try {
       const response = await fetch(qrImageUrl)
@@ -74,9 +66,6 @@ export default function ExamAccessPanel({
     }
   }
 
-  // ==========================================
-  // Print QR with title
-  // ==========================================
   const handlePrintQR = () => {
     const printWindow = window.open('', '_blank', 'width=600,height=800')
     if (!printWindow) {
@@ -136,9 +125,6 @@ export default function ExamAccessPanel({
     setTimeout(() => printWindow.print(), 500)
   }
 
-  // ==========================================
-  // Native share (mobile)
-  // ==========================================
   const handleShare = async () => {
     if (navigator.share) {
       try {
