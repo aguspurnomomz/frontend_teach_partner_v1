@@ -5,7 +5,7 @@ import {
   ArrowLeft, Search, RefreshCw, Clock, Users, CheckCircle2,
   AlertTriangle, XCircle, Loader2, Circle, Flag, Eye,
   Filter, Download, Lock, MapPin, User as UserIcon, KeyRound,
-  TrendingUp, AlertCircle, X, Wifi, Unlock, Megaphone,
+  TrendingUp, AlertCircle, Wifi, Unlock, Megaphone,
 } from 'lucide-react'
 import { supabase } from '../../../lib/supabaseClient'
 import { broadcastExamControl } from '../../../lib/examControlChannel'
@@ -155,7 +155,7 @@ export default function ExamMonitorPage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
 
   const [autoRefresh, setAutoRefresh] = useState(true)
-  const [refreshInterval, setRefreshInterval] = useState(10) // seconds
+  const [refreshInterval] = useState(10) 
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null)
   const [secondsUntilRefresh, setSecondsUntilRefresh] = useState(refreshInterval)
   const [refreshing, setRefreshing] = useState(false)
