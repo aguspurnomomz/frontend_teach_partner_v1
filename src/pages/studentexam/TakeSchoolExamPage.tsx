@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo } from 'react'
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import axios from 'axios'
 import {
   Clock, AlertCircle, Loader2, CheckCircle2, ChevronLeft,
@@ -18,6 +18,8 @@ import {
   loadTabSwitchCount,
   clearAllForSchedule,
   queueSubmit,
+  loadSubmitQueue,
+  removeFromQueue,
 } from '../../lib/examOfflineStorage'
 import {
   subscribeExamControl,
@@ -71,6 +73,19 @@ export default function TakeSchoolExamPage() {
     is_passed: boolean
     message: string
   } | null>(null)
+
+  // Server status check
+  const [lastShownWarningAt, setLastShownWarningAt] = useState<string | null>(null)
+
+  // ==========================================
+  // REFS — untuk auto-submit yang reliable
+  // ==========================================
+  const answersRef = useRef<AnswerMap>({})
+  const tabSwitchCountRef = useRef(0)
+  const timeLeftRef = useRef(0)
+  const submittingRef = useRef(false)
+  const autoSubmitTriggeredRef = useRef(false)
+  const handleSubmitRef = useRef<(auto?: boolean) => void>(() => {})
 
   const currentQuestion = useMemo(
     () =>
@@ -128,17 +143,48 @@ export default function TakeSchoolExamPage() {
   }, [])
 
   // ==========================================
-  // Timer
+  // Sync state → refs (biar auto-submit selalu baca nilai terbaru)
+  // ==========================================
+  useEffect(() => {
+    answersRef.current = answers
+  }, [answers])
+
+  useEffect(() => {
+    tabSwitchCountRef.current = tabSwitchCount
+  }, [tabSwitchCount])
+
+  useEffect(() => {
+    timeLeftRef.current = timeLeft
+  }, [timeLeft])
+
+  useEffect(() => {
+    submittingRef.current = submitting
+  }, [submitting])
+
+  // ==========================================
+  // Timer — countdown dari expires_at
+  // (auto-submit HANYA SEKALI)
   // ==========================================
   useEffect(() => {
     if (phase !== 'exam' || !snapshot) return
+
+    // Reset flag saat masuk exam
+    autoSubmitTriggeredRef.current = false
 
     const tick = () => {
       const expires = new Date(snapshot.expires_at).getTime()
       const remaining = Math.max(0, Math.floor((expires - Date.now()) / 1000))
       setTimeLeft(remaining)
+      timeLeftRef.current = remaining // sync ke ref
 
-      if (remaining <= 0) {
+      // Auto-submit HANYA SEKALI
+      if (
+        remaining <= 0 &&
+        !autoSubmitTriggeredRef.current &&
+        !submittingRef.current
+      ) {
+        autoSubmitTriggeredRef.current = true
+        console.log('[TakeExam] ⏰ Timer habis — auto-submit triggered')
         handleAutoSubmit()
       }
     }
@@ -232,7 +278,6 @@ export default function TakeSchoolExamPage() {
     const unsubscribe = subscribeExamControl(
       snapshot.schedule_id,
       (event: ExamControlEvent) => {
-        // Filter: hanya event untuk saya
         const isForMe =
           event.session_token === snapshot.session_token ||
           event.student_id === snapshot.student_id
@@ -246,7 +291,6 @@ export default function TakeSchoolExamPage() {
             reason: event.reason || 'Diblokir oleh pengawas',
             blockedAt: new Date().toISOString(),
           })
-          // Tutup local tab-switch overlay
           setIsBlocked(false)
         } else if (event.type === 'unblock') {
           setServerBlock(null)
@@ -279,6 +323,232 @@ export default function TakeSchoolExamPage() {
     }, 8000)
     return () => window.clearTimeout(timer)
   }, [warningToast])
+
+  // ==========================================
+  // checkServerStatus — fallback kalau realtime gagal / offline → online
+  // ==========================================
+  const checkServerStatus = useCallback(async () => {
+    if (!snapshot) return
+
+    try {
+      const res = await axios.get<{
+        is_blocked: boolean
+        blocked_reason: string
+        blocked_at: string | null
+        last_warning_at: string | null
+        last_warning_message: string
+        is_submitted: boolean
+      }>(`${API_URL}/api/exam/${snapshot.session_token}/status`, {
+        timeout: 5000,
+      })
+
+      const data = res.data
+
+      // Handle block
+      if (data.is_blocked) {
+        setServerBlock((prev) => {
+          if (prev) return prev
+          return {
+            reason: data.blocked_reason || 'Diblokir oleh pengawas',
+            blockedAt: data.blocked_at || new Date().toISOString(),
+          }
+        })
+        setIsBlocked(false)
+      } else {
+        setServerBlock((prev) => {
+          if (prev) {
+            setWarningToast({
+              message: 'Blokir dicabut. Anda dapat melanjutkan ujian.',
+              id: Date.now().toString(),
+            })
+          }
+          return null
+        })
+      }
+
+      // Handle warning (hindari duplikat)
+      if (
+        data.last_warning_at &&
+        data.last_warning_at !== lastShownWarningAt
+      ) {
+        setWarningToast({
+          message: data.last_warning_message || 'Peringatan dari pengawas',
+          id: Date.now().toString(),
+        })
+        setLastShownWarningAt(data.last_warning_at)
+      }
+    } catch (e) {
+      console.warn('[TakeExam] status check failed:', e)
+    }
+  }, [snapshot, API_URL, lastShownWarningAt])
+
+  // Trigger #1: saat mount pertama (masuk ujian)
+  useEffect(() => {
+    if (phase !== 'exam' || !snapshot) return
+    checkServerStatus()
+  }, [phase, snapshot?.session_token]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Trigger #2: saat kembali online
+  useEffect(() => {
+    if (!isOnline || phase !== 'exam' || !snapshot) return
+    checkServerStatus()
+  }, [isOnline]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Trigger #3: heartbeat 30 detik (opsional)
+  useEffect(() => {
+    if (phase !== 'exam' || !snapshot) return
+
+    const interval = window.setInterval(() => {
+      if (navigator.onLine) {
+        checkServerStatus()
+      }
+    }, 30000)
+
+    return () => window.clearInterval(interval)
+  }, [phase, snapshot?.session_token]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ==========================================
+  // Retry queued submit saat online kembali
+  // ==========================================
+  useEffect(() => {
+    if (!isOnline || !snapshot) return
+
+    const retryQueue = async () => {
+      const queue = loadSubmitQueue()
+      const item = queue.find(
+        (q) => q.session_token === snapshot.session_token
+      )
+      if (!item) return
+
+      console.log('[TakeExam] retrying queued submit...')
+
+      try {
+        const res = await axios.post<{
+          total_score: number
+          max_score: number
+          percentage: number
+          is_passed: boolean
+          message: string
+        }>(`${API_URL}/api/exam/${item.session_token}/submit`, {
+          answers: item.answers,
+          tab_switch_count: item.tab_switch_count,
+          time_spent_seconds: item.time_spent_seconds,
+        })
+
+        removeFromQueue(item.session_token)
+        console.log('[TakeExam] queued submit retried successfully')
+
+        setResult(res.data)
+        clearAllForSchedule(snapshot.schedule_id)
+        setPhase('result')
+      } catch (e) {
+        console.warn('[TakeExam] retry queued submit failed:', e)
+      }
+    }
+
+    retryQueue()
+  }, [isOnline, snapshot?.session_token]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ==========================================
+  // handleSubmit — baca dari REF untuk nilai terbaru
+  // ==========================================
+  const handleSubmit = async (auto = false) => {
+    if (!snapshot) return
+
+    // Cegah double submit
+    if (submittingRef.current) {
+      console.log('[TakeExam] Already submitting — skip')
+      return
+    }
+
+    if (serverBlock) {
+      if (!auto) alert('Anda tidak bisa submit saat diblokir. Hubungi pengawas.')
+      return
+    }
+
+    if (
+      !auto &&
+      !confirm('Yakin kirim jawaban? Anda tidak bisa mengubah setelah ini.')
+    ) {
+      return
+    }
+
+    // ★★★ BACA DARI REF — selalu nilai terbaru ★★★
+    const currentAnswers = answersRef.current
+    const currentTabSwitch = tabSwitchCountRef.current
+    const currentTimeLeft = timeLeftRef.current
+
+    console.log('[TakeExam] Submit:', {
+      auto,
+      answersCount: Object.keys(currentAnswers).length,
+      timeSpent: snapshot.duration_minutes * 60 - currentTimeLeft,
+    })
+
+    if (!isOnline) {
+      setSubmitError(
+        'Tidak ada koneksi internet. Jawaban tersimpan di perangkat, akan dikirim otomatis saat online.'
+      )
+      queueSubmit({
+        session_token: snapshot.session_token,
+        answers: currentAnswers,
+        tab_switch_count: currentTabSwitch,
+        time_spent_seconds: snapshot.duration_minutes * 60 - currentTimeLeft,
+        queued_at: new Date().toISOString(),
+      })
+      return
+    }
+
+    setSubmitting(true)
+    submittingRef.current = true
+    setSubmitError(null)
+    setPhase('submitting')
+
+    const payload = {
+      answers: currentAnswers,
+      tab_switch_count: currentTabSwitch,
+      time_spent_seconds: Math.max(
+        0,
+        snapshot.duration_minutes * 60 - currentTimeLeft
+      ),
+    }
+
+    try {
+      const res = await axios.post<{
+        total_score: number
+        max_score: number
+        percentage: number
+        is_passed: boolean
+        message: string
+      }>(`${API_URL}/api/exam/${snapshot.session_token}/submit`, payload)
+
+      setResult(res.data)
+      clearAllForSchedule(snapshot.schedule_id)
+      setPhase('result')
+    } catch (e: unknown) {
+      setSubmitError(getErrorMessage(e))
+      setPhase('exam')
+      setSubmitting(false)
+      submittingRef.current = false
+    }
+  }
+
+  // Sync handleSubmit ke ref (biar timer selalu panggil versi terbaru)
+  useEffect(() => {
+    handleSubmitRef.current = handleSubmit
+  })
+
+  // ==========================================
+  // handleAutoSubmit — dipanggil saat timer habis
+  // ==========================================
+  const handleAutoSubmit = useCallback(() => {
+    if (!snapshot) return
+    if (submittingRef.current) {
+      console.log('[TakeExam] Auto-submit skipped: already submitting')
+      return
+    }
+    console.log('[TakeExam] handleAutoSubmit → calling handleSubmit(true)')
+    handleSubmitRef.current(true)
+  }, [snapshot])
 
   // ==========================================
   // Handle Start Exam
@@ -329,6 +599,8 @@ export default function TakeSchoolExamPage() {
       setTabSwitchCount(0)
       setServerBlock(null)
       setWarningToast(null)
+      autoSubmitTriggeredRef.current = false
+      submittingRef.current = false
       setPhase('exam')
     } catch (e: unknown) {
       setError(getErrorMessage(e))
@@ -342,72 +614,12 @@ export default function TakeSchoolExamPage() {
   // Handle answer change
   // ==========================================
   const handleAnswerChange = (questionId: string, value: string) => {
-    setAnswers((prev) => ({ ...prev, [questionId]: value }))
+    setAnswers((prev) => {
+      const next = { ...prev, [questionId]: value }
+      answersRef.current = next // sync immediate
+      return next
+    })
   }
-
-  // ==========================================
-  // Submit
-  // ==========================================
-  const handleSubmit = async (auto = false) => {
-    if (!snapshot) return
-    if (serverBlock) {
-      alert('Anda tidak bisa submit saat diblokir. Hubungi pengawas.')
-      return
-    }
-    if (
-      !auto &&
-      !confirm('Yakin kirim jawaban? Anda tidak bisa mengubah setelah ini.')
-    )
-      return
-
-    if (!isOnline) {
-      setSubmitError(
-        'Tidak ada koneksi internet. Jawaban tersimpan di perangkat, akan dikirim otomatis saat online.'
-      )
-      queueSubmit({
-        session_token: snapshot.session_token,
-        answers,
-        tab_switch_count: tabSwitchCount,
-        time_spent_seconds: snapshot.duration_minutes * 60 - timeLeft,
-        queued_at: new Date().toISOString(),
-      })
-      return
-    }
-
-    setSubmitting(true)
-    setSubmitError(null)
-    setPhase('submitting')
-
-    const payload = {
-      answers,
-      tab_switch_count: tabSwitchCount,
-      time_spent_seconds: snapshot.duration_minutes * 60 - timeLeft,
-    }
-
-    try {
-      const res = await axios.post<{
-        total_score: number
-        max_score: number
-        percentage: number
-        is_passed: boolean
-        message: string
-      }>(`${API_URL}/api/exam/${snapshot.session_token}/submit`, payload)
-
-      setResult(res.data)
-      clearAllForSchedule(snapshot.schedule_id)
-      setPhase('result')
-    } catch (e: unknown) {
-      setSubmitError(getErrorMessage(e))
-      setPhase('exam')
-      setSubmitting(false)
-    }
-  }
-
-  const handleAutoSubmit = useCallback(() => {
-    if (!snapshot) return
-    if (submitting) return
-    handleSubmit(true)
-  }, [snapshot, submitting]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ==========================================
   // PHASE: GATE / LOADING
@@ -716,7 +928,6 @@ export default function TakeSchoolExamPage() {
 
       {/* ==========================================
           LOCAL TAB-SWITCH OVERLAY
-          (tidak muncul kalau serverBlock aktif)
       ========================================== */}
       {isBlocked && !serverBlock && (
         <div className="fixed inset-0 z-[100] grid place-items-center bg-black/90 backdrop-blur-sm p-4">

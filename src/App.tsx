@@ -227,7 +227,7 @@ export default function App() {
         console.error('Gagal memuat data sesi:', e)
         if (!cancelled) setAuthError(e.response?.data?.error || e.message)
         lastProfileTokenFetched = null
-        lastFetchedUserIdRef.current = null // biar bisa retry
+        lastFetchedUserIdRef.current = null 
         clearRoleCache()
       } finally {
         if (!cancelled) setCheckingRole(false)
@@ -384,27 +384,24 @@ export default function App() {
           <Route path="attendance/assignments" element={<ShiftAssignmentPage />} />
           <Route path="attendance/qr-codes" element={<QrCodeManagementPage />} />
           <Route path="attendance/sessions" element={<AttendanceSessionPage />} />
-          <Route
-            path="attendance/scanner/:sessionId"
-            element={<AttendanceScannerPage />}
-          />
+          <Route path="attendance/scanner/:sessionId" element={<AttendanceScannerPage />}/>
           <Route path="attendance/reports" element={<AttendanceReportPage />} />
 
-           {/* === EXAM ROUTES === */}
-          <Route path="exams" element={<ExamListPage />} />
-          <Route path="exams/create" element={<CreateExamPage />} />
-          <Route path="exams/:examId" element={<ExamDetailPage />} />
-          <Route path="exams/:examId/edit" element={<EditExamPage />} />
-          
-          {/* Exam Schedules Routes */}
-          <Route path="exam-schedules" element={<ExamSchedulePage />} />
-          <Route path="exam-schedules/create" element={<CreateExamSchedulePage />} />
-          <Route path="exam-schedules/:scheduleId/monitor" element={<ExamMonitorPage />} />
-          <Route path="exam-schedules/:scheduleId/grades" element={<ExamGradesPage />} />
-          <Route path="exam-schedules/:scheduleId/submissions/:submissionId" element={<ExamSubmissionDetailPage />} />
-          <Route path="exam-schedules/:scheduleId/edit" element={<CreateExamSchedulePage />} />
-          <Route path="exam-schedules/:scheduleId" element={<ExamScheduleDetailPage />} />
-          {/* ================== */}
+            {/* === EXAM ROUTES === */}
+            <Route path="exams" element={<ExamListPage />} />
+            <Route path="exams/create" element={<CreateExamPage />} />
+            <Route path="exams/:examId" element={<ExamDetailPage />} />
+            <Route path="exams/:examId/edit" element={<EditExamPage />} />
+            
+            {/* Exam Schedules Routes */}
+            <Route path="exam-schedules" element={<ExamSchedulePage />} />
+            <Route path="exam-schedules/create" element={<CreateExamSchedulePage />} />
+            <Route path="exam-schedules/:scheduleId/monitor" element={<ExamMonitorPage />} />
+            <Route path="exam-schedules/:scheduleId/grades" element={<ExamGradesPage />} />
+            <Route path="exam-schedules/:scheduleId/submissions/:submissionId" element={<ExamSubmissionDetailPage />} />
+            <Route path="exam-schedules/:scheduleId/edit" element={<CreateExamSchedulePage />} />
+            <Route path="exam-schedules/:scheduleId" element={<ExamScheduleDetailPage />} />
+            {/* ================== */}
         </Route>
 
         {/* --- Route Register & Publik --- */}
