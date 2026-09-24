@@ -5,10 +5,14 @@ import {
   ArrowLeft, Search, RefreshCw, Clock, Users, CheckCircle2,
   AlertTriangle, XCircle, Loader2, Circle, Flag, Eye,
   Filter, Download, Lock, MapPin, User as UserIcon, KeyRound,
-  TrendingUp, AlertCircle, Wifi,
+  TrendingUp, AlertCircle, X, Wifi, Unlock, Megaphone,
 } from 'lucide-react'
 import { supabase } from '../../../lib/supabaseClient'
+import { broadcastExamControl } from '../../../lib/examControlChannel'
 
+// ==========================================
+// TYPES
+// ==========================================
 
 type SubmissionStatus =
   | 'not_started'
@@ -35,6 +39,13 @@ type StudentRow = {
   is_flagged: boolean
   tab_switch_count: number
   ip_address: string | null
+
+  // ← New fields untuk blokir
+  session_id: string | null
+  session_token: string | null
+  is_blocked: boolean
+  blocked_reason: string | null
+  blocked_at: string | null
 }
 
 type ScheduleInfo = {
@@ -68,10 +79,14 @@ type MonitorResponse = {
     graded: number
     not_started: number
     flagged: number
+    blocked: number
     average_score: number | null
   }
 }
 
+// ==========================================
+// CONSTANTS
+// ==========================================
 
 const STATUS_CONFIG: Record<
   SubmissionStatus,
@@ -114,8 +129,18 @@ const STATUS_CONFIG: Record<
   },
 }
 
-type StatusFilter = 'all' | 'in_progress' | 'submitted' | 'graded' | 'not_started' | 'flagged'
+type StatusFilter =
+  | 'all'
+  | 'in_progress'
+  | 'submitted'
+  | 'graded'
+  | 'not_started'
+  | 'flagged'
+  | 'blocked'
 
+// ==========================================
+// MAIN COMPONENT
+// ==========================================
 
 export default function ExamMonitorPage() {
   const navigate = useNavigate()
@@ -130,7 +155,7 @@ export default function ExamMonitorPage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
 
   const [autoRefresh, setAutoRefresh] = useState(true)
-  const [refreshInterval] = useState(10) // seconds
+  const [refreshInterval, setRefreshInterval] = useState(10) // seconds
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null)
   const [secondsUntilRefresh, setSecondsUntilRefresh] = useState(refreshInterval)
   const [refreshing, setRefreshing] = useState(false)
@@ -138,8 +163,18 @@ export default function ExamMonitorPage() {
   const [confirmClose, setConfirmClose] = useState(false)
   const [closing, setClosing] = useState(false)
 
+  // ← Modal states untuk blokir/warning
+  const [blockTarget, setBlockTarget] = useState<StudentRow | null>(null)
+  const [warnTarget, setWarnTarget] = useState<StudentRow | null>(null)
+  const [blockReason, setBlockReason] = useState('')
+  const [warnMessage, setWarnMessage] = useState('')
+  const [actionLoading, setActionLoading] = useState<string | null>(null)
+
   const timerRef = useRef<number | null>(null)
 
+  // ==========================================
+  // Fetch monitor data
+  // ==========================================
   const fetchData = useCallback(
     async (silent = false) => {
       if (!scheduleId) return
@@ -168,8 +203,9 @@ export default function ExamMonitorPage() {
   // Initial fetch
   useEffect(() => {
     fetchData(false)
-  }, [scheduleId]) 
+  }, [scheduleId]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Auto refresh countdown
   useEffect(() => {
     if (!autoRefresh) return
     if (timerRef.current) window.clearInterval(timerRef.current)
@@ -189,6 +225,9 @@ export default function ExamMonitorPage() {
     }
   }, [autoRefresh, refreshInterval, fetchData])
 
+  // ==========================================
+  // Actions: Close Session
+  // ==========================================
   const handleClose = async () => {
     if (!scheduleId) return
     setClosing(true)
@@ -208,12 +247,141 @@ export default function ExamMonitorPage() {
     }
   }
 
+  // ==========================================
+  // Actions: Block Student
+  // ==========================================
+  const handleBlock = async () => {
+    if (!blockTarget || !blockReason.trim()) return
+    if (!blockTarget.session_id) {
+      alert('Session siswa tidak ditemukan. Siswa mungkin belum mulai mengerjakan.')
+      return
+    }
+
+    setActionLoading(blockTarget.student_id)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+
+      // 1. Update DB via backend
+      await axios.post(
+        `${API_URL}/api/school-admin/exam-live-sessions/${blockTarget.session_id}/block`,
+        { reason: blockReason.trim() },
+        { headers: { Authorization: `Bearer ${session?.access_token}` } }
+      )
+
+      // 2. Broadcast realtime ke siswa
+      if (data && blockTarget.session_token) {
+        try {
+          await broadcastExamControl(data.schedule.id, {
+            type: 'block',
+            student_id: blockTarget.student_id,
+            session_token: blockTarget.session_token,
+            reason: blockReason.trim(),
+          })
+        } catch (bcErr) {
+          console.warn('[Monitor] broadcast block failed:', bcErr)
+          // Jangan fail — DB sudah ter-update, siswa akan lihat saat refresh
+        }
+      }
+
+      setBlockTarget(null)
+      setBlockReason('')
+      await fetchData(true)
+    } catch (e: unknown) {
+      alert(getErrorMessage(e))
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
+  // ==========================================
+  // Actions: Unblock Student
+  // ==========================================
+  const handleUnblock = async (s: StudentRow) => {
+    if (!s.session_id) return
+    if (!confirm(`Aktifkan kembali ${s.student_name}?`)) return
+
+    setActionLoading(s.student_id)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+
+      await axios.post(
+        `${API_URL}/api/school-admin/exam-live-sessions/${s.session_id}/unblock`,
+        {},
+        { headers: { Authorization: `Bearer ${session?.access_token}` } }
+      )
+
+      if (data && s.session_token) {
+        try {
+          await broadcastExamControl(data.schedule.id, {
+            type: 'unblock',
+            student_id: s.student_id,
+            session_token: s.session_token,
+          })
+        } catch (bcErr) {
+          console.warn('[Monitor] broadcast unblock failed:', bcErr)
+        }
+      }
+
+      await fetchData(true)
+    } catch (e: unknown) {
+      alert(getErrorMessage(e))
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
+  // ==========================================
+  // Actions: Warn Student
+  // ==========================================
+  const handleWarn = async () => {
+    if (!warnTarget || !warnMessage.trim()) return
+    if (!warnTarget.session_id) {
+      alert('Session siswa tidak ditemukan.')
+      return
+    }
+
+    setActionLoading(warnTarget.student_id)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+
+      await axios.post(
+        `${API_URL}/api/school-admin/exam-live-sessions/${warnTarget.session_id}/warn`,
+        { message: warnMessage.trim() },
+        { headers: { Authorization: `Bearer ${session?.access_token}` } }
+      )
+
+      if (data && warnTarget.session_token) {
+        try {
+          await broadcastExamControl(data.schedule.id, {
+            type: 'warning',
+            student_id: warnTarget.student_id,
+            session_token: warnTarget.session_token,
+            message: warnMessage.trim(),
+          })
+        } catch (bcErr) {
+          console.warn('[Monitor] broadcast warning failed:', bcErr)
+        }
+      }
+
+      setWarnTarget(null)
+      setWarnMessage('')
+    } catch (e: unknown) {
+      alert(getErrorMessage(e))
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
+  // ==========================================
+  // Export CSV
+  // ==========================================
   const handleExportCSV = () => {
     if (!data) return
     const headers = [
       'No', 'Nama', 'NISN', 'Nomor Induk', 'Sub Kelas',
       'Status', 'Mulai', 'Submit', 'Durasi (menit)',
       'Skor', 'Persentase', 'Lulus', 'Flagged', 'Tab Switch',
+      'Diblokir', 'Alasan Blokir',
     ]
     const rows = data.students.map((s, i) => [
       i + 1,
@@ -230,22 +398,34 @@ export default function ExamMonitorPage() {
       s.is_passed == null ? '-' : s.is_passed ? 'Ya' : 'Tidak',
       s.is_flagged ? 'Ya' : 'Tidak',
       s.tab_switch_count,
+      s.is_blocked ? 'Ya' : 'Tidak',
+      s.blocked_reason || '-',
     ])
 
     const csvContent = [
       headers.join(','),
-      ...rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')),
+      ...rows.map((r) =>
+        r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')
+      ),
     ].join('\n')
 
-    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' })
+    const blob = new Blob(['\uFEFF' + csvContent], {
+      type: 'text/csv;charset=utf-8;',
+    })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `monitor_${data.schedule.exam_title.replace(/[^a-z0-9]/gi, '_')}_${data.schedule.schedule_date}.csv`
+    a.download = `monitor_${data.schedule.exam_title.replace(
+      /[^a-z0-9]/gi,
+      '_'
+    )}_${data.schedule.schedule_date}.csv`
     a.click()
     URL.revokeObjectURL(url)
   }
 
+  // ==========================================
+  // Filtered list
+  // ==========================================
   const filteredStudents = useMemo(() => {
     if (!data) return []
     let list = data.students
@@ -253,6 +433,8 @@ export default function ExamMonitorPage() {
     if (statusFilter !== 'all') {
       if (statusFilter === 'flagged') {
         list = list.filter((s) => s.is_flagged)
+      } else if (statusFilter === 'blocked') {
+        list = list.filter((s) => s.is_blocked)
       } else if (statusFilter === 'graded') {
         list = list.filter(
           (s) => s.status === 'graded' || s.status === 'graded_with_pending'
@@ -275,6 +457,9 @@ export default function ExamMonitorPage() {
     return list
   }, [data, statusFilter, search])
 
+  // ==========================================
+  // Loading state
+  // ==========================================
   if (loading) {
     return (
       <div className="mx-auto max-w-6xl">
@@ -295,6 +480,9 @@ export default function ExamMonitorPage() {
     )
   }
 
+  // ==========================================
+  // Error state
+  // ==========================================
   if (error || !data) {
     return (
       <div className="mx-auto max-w-6xl">
@@ -340,7 +528,6 @@ export default function ExamMonitorPage() {
           </p>
         </div>
 
-        {/* Auto refresh controls */}
         <div className="flex items-center gap-2">
           <button
             type="button"
@@ -397,7 +584,7 @@ export default function ExamMonitorPage() {
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-tp-muted">
             <span className="inline-flex items-center gap-1.5">
               <Clock size={12} />
-              {formatDate(schedule.schedule_date)} • {formatTime(schedule.start_time)} - {formatTime(schedule.end_time)}
+              {formatDate(schedule.schedule_date)} • {formatTime24(schedule.start_time)} - {formatTime24(schedule.end_time)}
             </span>
             {schedule.room && (
               <span className="inline-flex items-center gap-1.5">
@@ -423,7 +610,6 @@ export default function ExamMonitorPage() {
           </div>
         </div>
 
-        {/* Countdown / info bar */}
         {isLive && remainingTime && (
           <div className="border-t border-tp-border bg-emerald-50/50 px-6 py-3">
             <div className="flex items-center justify-between">
@@ -439,7 +625,7 @@ export default function ExamMonitorPage() {
       </div>
 
       {/* Stats grid */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         <StatCard
           label="Total Peserta"
           value={stats.total_students}
@@ -466,6 +652,13 @@ export default function ExamMonitorPage() {
           tone="slate"
         />
         <StatCard
+          label="Diblokir"
+          value={stats.blocked}
+          icon={<Lock size={16} className="text-rose-600" />}
+          tone="rose"
+          highlight={stats.blocked > 0}
+        />
+        <StatCard
           label="Rata-rata"
           value={stats.average_score != null ? stats.average_score.toFixed(1) : '—'}
           icon={<TrendingUp size={16} className="text-amber-600" />}
@@ -476,9 +669,11 @@ export default function ExamMonitorPage() {
       {/* Filter bar */}
       <div className="rounded-2xl border border-tp-border bg-white p-3">
         <div className="flex flex-wrap items-center gap-2">
-          {/* Search */}
           <div className="relative min-w-[200px] flex-1">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-tp-muted" />
+            <Search
+              size={14}
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-tp-muted"
+            />
             <input
               type="text"
               value={search}
@@ -488,15 +683,23 @@ export default function ExamMonitorPage() {
             />
           </div>
 
-          {/* Status filter */}
           <div className="flex items-center gap-1 overflow-x-auto">
             {(
               [
                 { key: 'all', label: 'Semua', count: stats.total_students },
-                { key: 'in_progress', label: 'Mengerjakan', count: stats.in_progress },
-                { key: 'submitted', label: 'Selesai', count: stats.submitted + stats.graded },
+                {
+                  key: 'in_progress',
+                  label: 'Mengerjakan',
+                  count: stats.in_progress,
+                },
+                {
+                  key: 'submitted',
+                  label: 'Selesai',
+                  count: stats.submitted + stats.graded,
+                },
                 { key: 'not_started', label: 'Belum', count: stats.not_started },
                 { key: 'flagged', label: 'Flagged', count: stats.flagged },
+                { key: 'blocked', label: 'Diblokir', count: stats.blocked },
               ] as const
             ).map(({ key, label, count }) => {
               const active = statusFilter === key
@@ -525,10 +728,10 @@ export default function ExamMonitorPage() {
           </div>
         </div>
 
-        {/* Info bar */}
         <div className="mt-2 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-2">
           <span className="text-[10px] text-tp-faint">
-            {lastRefreshed && `Terakhir update: ${lastRefreshed.toLocaleTimeString('id-ID')}`}
+            {lastRefreshed &&
+              `Terakhir update: ${lastRefreshed.toLocaleTimeString('id-ID')}`}
           </span>
           <span className="text-[10px] text-tp-faint">
             Menampilkan {filteredStudents.length} dari {data.students.length} siswa
@@ -568,22 +771,37 @@ export default function ExamMonitorPage() {
                 {filteredStudents.map((s) => {
                   const cfg = STATUS_CONFIG[s.status]
                   const StatusIcon = cfg.icon
+                  const isInProgress = s.status === 'in_progress'
+                  const canControl = isInProgress && !!s.session_id
+
                   return (
                     <tr
                       key={s.student_id}
-                      className="border-b border-slate-100 last:border-0 hover:bg-slate-50/50"
+                      className={`border-b border-slate-100 last:border-0 ${
+                        s.is_blocked
+                          ? 'bg-rose-50/40 hover:bg-rose-50/60'
+                          : 'hover:bg-slate-50/50'
+                      }`}
                     >
                       <Td>
                         <div className="flex items-center gap-2.5">
                           <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${cfg.dot}`} />
                           <div className="min-w-0">
-                            <div className="flex items-center gap-1.5">
+                            <div className="flex flex-wrap items-center gap-1.5">
                               <span className="truncate text-sm font-semibold text-tp-text">
                                 {s.student_name}
                               </span>
                               {s.is_flagged && (
                                 <span title="Flagged">
                                   <Flag size={11} className="text-rose-500" />
+                                </span>
+                              )}
+                              {s.is_blocked && (
+                                <span
+                                  className="inline-flex items-center gap-1 rounded-md bg-rose-100 px-1.5 py-0.5 text-[9px] font-bold uppercase text-rose-700"
+                                  title={s.blocked_reason || 'Diblokir'}
+                                >
+                                  <Lock size={8} /> DIBLOKIR
                                 </span>
                               )}
                             </div>
@@ -647,22 +865,73 @@ export default function ExamMonitorPage() {
                         )}
                       </Td>
                       <Td align="center">
-                        {s.submission_id ? (
-                          <button
-                            type="button"
-                            onClick={() =>
-                              navigate(
-                                `/school-admin/dashboard/exam-schedules/${scheduleId}/submissions/${s.submission_id}`
-                              )
-                            }
-                            className="inline-grid h-7 w-7 place-items-center rounded-lg text-tp-muted hover:bg-slate-100"
-                            title="Lihat jawaban"
-                          >
-                            <Eye size={13} />
-                          </button>
-                        ) : (
-                          <span className="text-[10px] text-tp-faint">—</span>
-                        )}
+                        <div className="flex items-center justify-center gap-1">
+                          {/* Lihat jawaban (kalau sudah submit) */}
+                          {s.submission_id && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                navigate(
+                                  `/school-admin/dashboard/exam-schedules/${scheduleId}/submissions/${s.submission_id}`
+                                )
+                              }
+                              className="inline-grid h-7 w-7 place-items-center rounded-lg text-tp-muted hover:bg-slate-100"
+                              title="Lihat jawaban"
+                            >
+                              <Eye size={13} />
+                            </button>
+                          )}
+
+                          {/* Kontrol: blokir / unblock / warning */}
+                          {canControl && (
+                            <>
+                              {s.is_blocked ? (
+                                <button
+                                  type="button"
+                                  disabled={actionLoading === s.student_id}
+                                  onClick={() => handleUnblock(s)}
+                                  className="inline-flex items-center gap-1 rounded-lg bg-emerald-100 px-2 py-1 text-[10px] font-bold text-emerald-700 hover:bg-emerald-200 disabled:opacity-50"
+                                  title="Aktifkan kembali"
+                                >
+                                  {actionLoading === s.student_id ? (
+                                    <Loader2 size={10} className="animate-spin" />
+                                  ) : (
+                                    <Unlock size={10} />
+                                  )}
+                                  Aktifkan
+                                </button>
+                              ) : (
+                                <>
+                                  <button
+                                    type="button"
+                                    disabled={actionLoading === s.student_id}
+                                    onClick={() => setWarnTarget(s)}
+                                    className="inline-grid h-7 w-7 place-items-center rounded-lg text-amber-600 hover:bg-amber-50 disabled:opacity-50"
+                                    title="Kirim peringatan"
+                                  >
+                                    <Megaphone size={13} />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    disabled={actionLoading === s.student_id}
+                                    onClick={() => {
+                                      setBlockReason('')
+                                      setBlockTarget(s)
+                                    }}
+                                    className="inline-flex items-center gap-1 rounded-lg bg-rose-100 px-2 py-1 text-[10px] font-bold text-rose-700 hover:bg-rose-200 disabled:opacity-50"
+                                    title="Blokir siswa"
+                                  >
+                                    <Lock size={10} /> Blokir
+                                  </button>
+                                </>
+                              )}
+                            </>
+                          )}
+
+                          {!canControl && !s.submission_id && (
+                            <span className="text-[10px] text-tp-faint">—</span>
+                          )}
+                        </div>
                       </Td>
                     </tr>
                   )
@@ -694,7 +963,9 @@ export default function ExamMonitorPage() {
         )}
       </div>
 
-      {/* Confirm Close Modal */}
+      {/* ==========================================
+          Modal: Confirm Close Session
+      ========================================== */}
       {confirmClose && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
           <div
@@ -716,12 +987,11 @@ export default function ExamMonitorPage() {
 
             {stats.in_progress > 0 && (
               <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3">
-                <p className="text-xs font-semibold text-amber-800">
-                  ⚠ Perhatian
-                </p>
+                <p className="text-xs font-semibold text-amber-800">⚠ Perhatian</p>
                 <p className="mt-0.5 text-[11px] text-amber-700">
-                  Masih ada <b>{stats.in_progress} siswa</b> yang sedang mengerjakan.
-                  Pastikan mereka sudah dikonfirmasi sebelum sesi ditutup.
+                  Masih ada <b>{stats.in_progress} siswa</b> yang sedang
+                  mengerjakan. Pastikan mereka sudah dikonfirmasi sebelum sesi
+                  ditutup.
                 </p>
               </div>
             )}
@@ -747,10 +1017,186 @@ export default function ExamMonitorPage() {
           </div>
         </div>
       )}
+
+      {/* ==========================================
+          Modal: Block Student
+      ========================================== */}
+      {blockTarget && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            onClick={() => !actionLoading && setBlockTarget(null)}
+          />
+          <div className="relative w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+            <div className="mb-4 flex items-start gap-3">
+              <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-rose-100">
+                <Lock size={20} className="text-rose-600" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-tp-text">Blokir Siswa?</h3>
+                <p className="text-xs text-tp-muted">
+                  Siswa akan langsung terblokir di detik ini juga (realtime).
+                </p>
+              </div>
+            </div>
+
+            <div className="mb-4 rounded-xl bg-slate-50 p-3">
+              <p className="text-xs text-tp-muted">
+                <b className="text-tp-text">{blockTarget.student_name}</b>
+                <br />
+                NISN: {blockTarget.nisn || '—'}
+                {blockTarget.tab_switch_count > 0 && (
+                  <span className="text-rose-600">
+                    <br />
+                    ⚠ {blockTarget.tab_switch_count}× pindah tab
+                  </span>
+                )}
+              </p>
+            </div>
+
+            <label className="mb-1.5 block text-xs font-semibold text-tp-text">
+              Alasan blokir <span className="text-rose-500">*</span>
+            </label>
+            <textarea
+              rows={3}
+              value={blockReason}
+              onChange={(e) => setBlockReason(e.target.value)}
+              placeholder="Contoh: Terdeteksi melihat catatan"
+              className="w-full resize-none rounded-xl border border-tp-border px-3 py-2 text-sm focus:border-rose-500 focus:outline-none"
+              autoFocus
+            />
+
+            <div className="mt-5 flex gap-3">
+              <button
+                type="button"
+                disabled={!!actionLoading}
+                onClick={() => {
+                  setBlockTarget(null)
+                  setBlockReason('')
+                }}
+                className="flex-1 rounded-xl border border-tp-border bg-white px-4 py-2.5 text-sm font-semibold text-tp-muted hover:bg-slate-50 disabled:opacity-50"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                disabled={!blockReason.trim() || !!actionLoading}
+                onClick={handleBlock}
+                className="flex-1 rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-rose-700 disabled:opacity-50"
+              >
+                {actionLoading === blockTarget.student_id ? (
+                  <>
+                    <Loader2 size={12} className="mr-1 inline animate-spin" />
+                    Memblokir...
+                  </>
+                ) : (
+                  'Ya, Blokir'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ==========================================
+          Modal: Warn Student
+      ========================================== */}
+      {warnTarget && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            onClick={() => !actionLoading && setWarnTarget(null)}
+          />
+          <div className="relative w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+            <div className="mb-4 flex items-start gap-3">
+              <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-amber-100">
+                <Megaphone size={20} className="text-amber-600" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-tp-text">
+                  Kirim Peringatan
+                </h3>
+                <p className="text-xs text-tp-muted">
+                  Pesan akan muncul langsung di layar siswa (realtime).
+                </p>
+              </div>
+            </div>
+
+            <div className="mb-4 rounded-xl bg-slate-50 p-3">
+              <p className="text-xs text-tp-muted">
+                Untuk: <b className="text-tp-text">{warnTarget.student_name}</b>
+              </p>
+            </div>
+
+            <label className="mb-1.5 block text-xs font-semibold text-tp-text">
+              Pesan <span className="text-rose-500">*</span>
+            </label>
+            <textarea
+              rows={3}
+              value={warnMessage}
+              onChange={(e) => setWarnMessage(e.target.value)}
+              placeholder="Contoh: Fokus ke layar, jangan melihat ke samping"
+              className="w-full resize-none rounded-xl border border-tp-border px-3 py-2 text-sm focus:border-amber-500 focus:outline-none"
+              autoFocus
+            />
+
+            <div className="mt-3 flex flex-wrap gap-1.5">
+              <span className="text-[10px] text-tp-muted">Template cepat:</span>
+              {[
+                'Fokus ke layar ujian',
+                'Jangan melihat ke samping',
+                'Jangan berbicara dengan teman',
+                'Simpan alat komunikasi',
+              ].map((tpl) => (
+                <button
+                  key={tpl}
+                  type="button"
+                  onClick={() => setWarnMessage(tpl)}
+                  className="rounded-md border border-tp-border bg-white px-2 py-0.5 text-[10px] font-semibold text-tp-muted hover:bg-slate-50"
+                >
+                  {tpl}
+                </button>
+              ))}
+            </div>
+
+            <div className="mt-5 flex gap-3">
+              <button
+                type="button"
+                disabled={!!actionLoading}
+                onClick={() => {
+                  setWarnTarget(null)
+                  setWarnMessage('')
+                }}
+                className="flex-1 rounded-xl border border-tp-border bg-white px-4 py-2.5 text-sm font-semibold text-tp-muted hover:bg-slate-50 disabled:opacity-50"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                disabled={!warnMessage.trim() || !!actionLoading}
+                onClick={handleWarn}
+                className="flex-1 rounded-xl bg-amber-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-amber-600 disabled:opacity-50"
+              >
+                {actionLoading === warnTarget.student_id ? (
+                  <>
+                    <Loader2 size={12} className="mr-1 inline animate-spin" />
+                    Mengirim...
+                  </>
+                ) : (
+                  'Kirim'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
 
+// ==========================================
+// SUB-COMPONENTS
+// ==========================================
 
 function StatCard({
   label,
@@ -758,28 +1204,39 @@ function StatCard({
   icon,
   tone,
   pulse,
+  highlight,
 }: {
   label: string
   value: number | string
   icon: React.ReactNode
-  tone: 'slate' | 'blue' | 'emerald' | 'amber'
+  tone: 'slate' | 'blue' | 'emerald' | 'amber' | 'rose'
   pulse?: boolean
+  highlight?: boolean
 }) {
   const tones: Record<typeof tone, string> = {
     slate: 'border-slate-200 bg-white',
     blue: 'border-blue-200 bg-blue-50/40',
     emerald: 'border-emerald-200 bg-emerald-50/40',
     amber: 'border-amber-200 bg-amber-50/40',
+    rose: 'border-rose-200 bg-rose-50/40',
   }
   return (
-    <div className={`rounded-2xl border p-4 ${tones[tone]}`}>
+    <div
+      className={`rounded-2xl border p-4 ${tones[tone]} ${
+        highlight ? 'ring-2 ring-rose-200' : ''
+      }`}
+    >
       <div className="mb-2 flex items-center gap-2">
         {icon}
         <span className="text-[10px] font-semibold uppercase tracking-wider text-tp-muted">
           {label}
         </span>
       </div>
-      <div className={`text-2xl font-bold text-tp-text ${pulse ? 'animate-pulse' : ''}`}>
+      <div
+        className={`text-2xl font-bold text-tp-text ${
+          pulse ? 'animate-pulse' : ''
+        }`}
+      >
         {value}
       </div>
     </div>
@@ -809,17 +1266,18 @@ function Td({
   children: React.ReactNode
   align?: 'left' | 'center' | 'right'
 }) {
-  return (
-    <td className={`px-4 py-3 text-${align}`}>
-      {children}
-    </td>
-  )
+  return <td className={`px-4 py-3 text-${align}`}>{children}</td>
 }
 
+// ==========================================
+// HELPERS
+// ==========================================
 
 function getErrorMessage(e: unknown): string {
   if (axios.isAxiosError(e)) {
-    return (e.response?.data as { error?: string } | undefined)?.error || e.message
+    return (
+      (e.response?.data as { error?: string } | undefined)?.error || e.message
+    )
   }
   if (e instanceof Error) return e.message
   return String(e)
@@ -836,7 +1294,7 @@ function formatDate(dateStr: string): string {
   })
 }
 
-function formatTime(t: string): string {
+function formatTime24(t: string): string {
   return t?.slice(0, 5) || '-'
 }
 
@@ -851,19 +1309,15 @@ function formatDateTime(iso: string): string {
   })
 }
 
-/**
- * Hitung sisa waktu ujian berdasarkan schedule.
- * Format: "HH:MM:SS" atau null kalau tidak live.
- */
 function getRemainingTime(schedule: ScheduleInfo): string | null {
-  if (schedule.status !== 'ongoing' && schedule.status !== 'scheduled') return null
+  if (schedule.status !== 'ongoing' && schedule.status !== 'scheduled')
+    return null
 
   const today = new Date()
   const y = today.getFullYear()
   const m = today.getMonth()
   const d = today.getDate()
 
-  // Parse end_time (HH:MM atau HH:MM:SS)
   const parts = schedule.end_time.split(':')
   const endH = parseInt(parts[0], 10)
   const endM = parseInt(parts[1], 10)

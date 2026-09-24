@@ -2,9 +2,9 @@ import { useEffect, useState, useCallback, useMemo } from 'react'
 import axios from 'axios'
 import {
   Clock, AlertCircle, Loader2, CheckCircle2, ChevronLeft,
-  ChevronRight,  Send, WifiOff, Wifi, 
+  ChevronRight, Send, WifiOff, Wifi,
   BookOpen, User as UserIcon, KeyRound, AlertTriangle,
-  Lock,  RefreshCw, 
+  Lock, RefreshCw, X,
 } from 'lucide-react'
 import {
   type ExamSnapshot,
@@ -19,6 +19,10 @@ import {
   clearAllForSchedule,
   queueSubmit,
 } from '../../lib/examOfflineStorage'
+import {
+  subscribeExamControl,
+  type ExamControlEvent,
+} from '../../lib/examControlChannel'
 
 const API_URL = import.meta.env.VITE_API_URL
 
@@ -42,9 +46,20 @@ export default function TakeSchoolExamPage() {
   const [timeLeft, setTimeLeft] = useState(0) // seconds
   const [tabSwitchCount, setTabSwitchCount] = useState(0)
 
-  // Live block overlay
+  // Live block overlay (local tab-switch)
   const [isBlocked, setIsBlocked] = useState(false)
   const [blockReason, setBlockReason] = useState<string>('')
+
+  // Server-side block & warning (Realtime Broadcast)
+  const [serverBlock, setServerBlock] = useState<{
+    reason: string
+    blockedAt: string
+  } | null>(null)
+
+  const [warningToast, setWarningToast] = useState<{
+    message: string
+    id: string
+  } | null>(null)
 
   // Submit
   const [submitting, setSubmitting] = useState(false)
@@ -65,7 +80,9 @@ export default function TakeSchoolExamPage() {
     [snapshot, currentIndex]
   )
 
-
+  // ==========================================
+  // Resume check on mount
+  // ==========================================
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search)
     const codeFromUrl = urlParams.get('code')
@@ -82,14 +99,12 @@ export default function TakeSchoolExamPage() {
         const scheduleId = key.replace('tp_exam_snapshot_', '')
         const snap = loadSnapshot(scheduleId)
         if (snap && new Date(snap.expires_at).getTime() > Date.now()) {
-          // Resume this exam
           setSnapshot(snap)
           setAnswers(loadAnswers(scheduleId))
           setTabSwitchCount(loadTabSwitchCount(scheduleId))
           setPhase('exam')
           break
         } else if (snap) {
-          // Expired — clear
           clearAllForSchedule(scheduleId)
         }
       }
@@ -98,7 +113,9 @@ export default function TakeSchoolExamPage() {
     }
   }, [])
 
-
+  // ==========================================
+  // Online / offline detection
+  // ==========================================
   useEffect(() => {
     const goOnline = () => setIsOnline(true)
     const goOffline = () => setIsOnline(false)
@@ -110,7 +127,9 @@ export default function TakeSchoolExamPage() {
     }
   }, [])
 
-
+  // ==========================================
+  // Timer
+  // ==========================================
   useEffect(() => {
     if (phase !== 'exam' || !snapshot) return
 
@@ -129,7 +148,9 @@ export default function TakeSchoolExamPage() {
     return () => window.clearInterval(interval)
   }, [phase, snapshot]) // eslint-disable-line react-hooks/exhaustive-deps
 
-
+  // ==========================================
+  // Live block (tab-switch)
+  // ==========================================
   useEffect(() => {
     if (phase !== 'exam') return
 
@@ -146,7 +167,6 @@ export default function TakeSchoolExamPage() {
     }
 
     const handleBlur = () => {
-      // Trigger kalau window lose focus (misal klik aplikasi lain)
       setIsBlocked(true)
       setBlockReason('Anda berpindah aplikasi / window')
     }
@@ -160,7 +180,9 @@ export default function TakeSchoolExamPage() {
     }
   }, [phase, snapshot])
 
-  // Disable right click & copy (opsional, ringan)
+  // ==========================================
+  // Disable right click & copy
+  // ==========================================
   useEffect(() => {
     if (phase !== 'exam') return
 
@@ -178,13 +200,17 @@ export default function TakeSchoolExamPage() {
     }
   }, [phase])
 
-  // Auto-save answers ke localStorage tiap kali berubah
+  // ==========================================
+  // Auto-save answers
+  // ==========================================
   useEffect(() => {
     if (phase !== 'exam' || !snapshot) return
     saveAnswers(snapshot.schedule_id, answers)
   }, [answers, phase, snapshot])
 
-  // Warning kalau user refresh / close
+  // ==========================================
+  // Warning before unload
+  // ==========================================
   useEffect(() => {
     if (phase !== 'exam') return
     const handler = (e: BeforeUnloadEvent) => {
@@ -195,7 +221,68 @@ export default function TakeSchoolExamPage() {
     return () => window.removeEventListener('beforeunload', handler)
   }, [phase])
 
+  // ==========================================
+  // Realtime Subscribe — exam-control channel
+  // ==========================================
+  useEffect(() => {
+    if (phase !== 'exam' || !snapshot) return
 
+    console.log('[TakeExam] subscribing to exam-control channel...')
+
+    const unsubscribe = subscribeExamControl(
+      snapshot.schedule_id,
+      (event: ExamControlEvent) => {
+        // Filter: hanya event untuk saya
+        const isForMe =
+          event.session_token === snapshot.session_token ||
+          event.student_id === snapshot.student_id
+
+        if (!isForMe) return
+
+        console.log('[TakeExam] received control event:', event)
+
+        if (event.type === 'block') {
+          setServerBlock({
+            reason: event.reason || 'Diblokir oleh pengawas',
+            blockedAt: new Date().toISOString(),
+          })
+          // Tutup local tab-switch overlay
+          setIsBlocked(false)
+        } else if (event.type === 'unblock') {
+          setServerBlock(null)
+          setWarningToast({
+            message: 'Blokir dicabut. Anda dapat melanjutkan ujian.',
+            id: Date.now().toString(),
+          })
+        } else if (event.type === 'warning') {
+          setWarningToast({
+            message: event.message || 'Peringatan dari pengawas',
+            id: Date.now().toString(),
+          })
+        }
+      }
+    )
+
+    return () => {
+      console.log('[TakeExam] unsubscribing from exam-control channel')
+      unsubscribe()
+    }
+  }, [phase, snapshot])
+
+  // ==========================================
+  // Auto-hide warning toast
+  // ==========================================
+  useEffect(() => {
+    if (!warningToast) return
+    const timer = window.setTimeout(() => {
+      setWarningToast(null)
+    }, 8000)
+    return () => window.clearTimeout(timer)
+  }, [warningToast])
+
+  // ==========================================
+  // Handle Start Exam
+  // ==========================================
   const handleStart = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
@@ -240,6 +327,8 @@ export default function TakeSchoolExamPage() {
       setAnswers({})
       setCurrentIndex(0)
       setTabSwitchCount(0)
+      setServerBlock(null)
+      setWarningToast(null)
       setPhase('exam')
     } catch (e: unknown) {
       setError(getErrorMessage(e))
@@ -249,21 +338,32 @@ export default function TakeSchoolExamPage() {
     }
   }
 
-
+  // ==========================================
+  // Handle answer change
+  // ==========================================
   const handleAnswerChange = (questionId: string, value: string) => {
     setAnswers((prev) => ({ ...prev, [questionId]: value }))
   }
 
-
+  // ==========================================
+  // Submit
+  // ==========================================
   const handleSubmit = async (auto = false) => {
     if (!snapshot) return
-    if (!auto && !confirm('Yakin kirim jawaban? Anda tidak bisa mengubah setelah ini.')) return
+    if (serverBlock) {
+      alert('Anda tidak bisa submit saat diblokir. Hubungi pengawas.')
+      return
+    }
+    if (
+      !auto &&
+      !confirm('Yakin kirim jawaban? Anda tidak bisa mengubah setelah ini.')
+    )
+      return
 
     if (!isOnline) {
       setSubmitError(
         'Tidak ada koneksi internet. Jawaban tersimpan di perangkat, akan dikirim otomatis saat online.'
       )
-      // Queue for later
       queueSubmit({
         session_token: snapshot.session_token,
         answers,
@@ -309,7 +409,9 @@ export default function TakeSchoolExamPage() {
     handleSubmit(true)
   }, [snapshot, submitting]) // eslint-disable-line react-hooks/exhaustive-deps
 
-
+  // ==========================================
+  // PHASE: GATE / LOADING
+  // ==========================================
   if (phase === 'gate' || phase === 'loading') {
     return (
       <div className="min-h-screen bg-slate-50 py-8 px-4">
@@ -425,6 +527,7 @@ export default function TakeSchoolExamPage() {
                 <li>• Soal di-download sekali, siap dikerjakan walau jaringan lemah</li>
                 <li>• Jangan tutup atau refresh halaman saat mengerjakan</li>
                 <li>• Berpindah tab akan tercatat sebagai aktivitas mencurigakan</li>
+                <li>• Pengawas dapat mengirim peringatan atau memblokir secara realtime</li>
               </ul>
             </div>
           </form>
@@ -433,7 +536,9 @@ export default function TakeSchoolExamPage() {
     )
   }
 
-
+  // ==========================================
+  // PHASE: SUBMITTING
+  // ==========================================
   if (phase === 'submitting') {
     return (
       <div className="grid min-h-screen place-items-center bg-slate-50">
@@ -446,7 +551,9 @@ export default function TakeSchoolExamPage() {
     )
   }
 
- 
+  // ==========================================
+  // PHASE: RESULT
+  // ==========================================
   if (phase === 'result' && result) {
     return (
       <div className="min-h-screen bg-slate-50 py-12 px-4">
@@ -511,7 +618,9 @@ export default function TakeSchoolExamPage() {
     )
   }
 
-
+  // ==========================================
+  // PHASE: EXAM
+  // ==========================================
   if (!snapshot || !currentQuestion) {
     return (
       <div className="grid min-h-screen place-items-center bg-slate-50">
@@ -523,15 +632,93 @@ export default function TakeSchoolExamPage() {
   const answeredCount = Object.values(answers).filter((v) => v?.trim()).length
   const totalQ = snapshot.questions.length
   const progress = Math.round((answeredCount / totalQ) * 100)
-  const isTimeWarning = timeLeft < 5 * 60 // < 5 menit
+  const isTimeWarning = timeLeft < 5 * 60
   const isLastQuestion = currentIndex === totalQ - 1
 
   return (
     <div className="min-h-screen bg-slate-50">
       {/* ==========================================
-          LIVE BLOCK OVERLAY
+          SERVER-SIDE BLOCK OVERLAY (Prioritas tertinggi)
       ========================================== */}
-      {isBlocked && (
+      {serverBlock && (
+        <div className="fixed inset-0 z-[200] grid place-items-center bg-black/95 backdrop-blur-sm p-4">
+          <div className="max-w-md rounded-2xl bg-white p-8 text-center shadow-2xl">
+            <div className="mx-auto mb-4 grid h-20 w-20 place-items-center rounded-full bg-rose-100">
+              <Lock size={36} className="text-rose-600" />
+            </div>
+
+            <h2 className="mb-2 text-2xl font-bold text-rose-700">
+              🚫 UJIAN DIBLOKIR
+            </h2>
+            <p className="mb-1 text-sm text-tp-text">
+              Pengawas menghentikan ujian Anda.
+            </p>
+            <p className="mb-5 text-xs text-tp-muted">
+              Hubungi pengawas untuk informasi lebih lanjut. Halaman ini tidak
+              bisa digunakan sampai blokir dicabut.
+            </p>
+
+            {serverBlock.reason && (
+              <div className="mb-4 rounded-xl bg-rose-50 p-3 text-left">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-rose-700">
+                  Alasan:
+                </p>
+                <p className="mt-0.5 text-sm text-rose-900">
+                  {serverBlock.reason}
+                </p>
+              </div>
+            )}
+
+            <div className="rounded-xl bg-slate-50 p-3 text-[11px] text-tp-muted">
+              <p className="mb-1">Sesi:</p>
+              <code className="font-mono text-[10px] text-tp-text break-all">
+                {snapshot.session_token}
+              </code>
+            </div>
+
+            <div className="mt-5 flex items-center justify-center gap-2 text-[10px] text-tp-faint">
+              <span className="h-2 w-2 animate-pulse rounded-full bg-rose-500" />
+              Menunggu pengawas mencabut blokir...
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ==========================================
+          WARNING TOAST (Realtime — auto hide 8s)
+      ========================================== */}
+      {warningToast && (
+        <div
+          key={warningToast.id}
+          className="fixed left-1/2 top-4 z-[150] w-[calc(100%-2rem)] max-w-md -translate-x-1/2 animate-slideDown"
+        >
+          <div className="flex items-start gap-3 rounded-2xl border-2 border-amber-300 bg-amber-50 p-4 shadow-2xl">
+            <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-amber-200">
+              <AlertTriangle size={18} className="text-amber-700" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="mb-0.5 text-xs font-bold uppercase tracking-wider text-amber-800">
+                ⚠️ Peringatan Pengawas
+              </p>
+              <p className="text-sm text-amber-900">{warningToast.message}</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setWarningToast(null)}
+              className="grid h-6 w-6 shrink-0 place-items-center rounded-lg text-amber-700 hover:bg-amber-200"
+              aria-label="Tutup"
+            >
+              <X size={14} />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ==========================================
+          LOCAL TAB-SWITCH OVERLAY
+          (tidak muncul kalau serverBlock aktif)
+      ========================================== */}
+      {isBlocked && !serverBlock && (
         <div className="fixed inset-0 z-[100] grid place-items-center bg-black/90 backdrop-blur-sm p-4">
           <div className="max-w-md rounded-2xl bg-white p-6 text-center shadow-2xl">
             <div className="mx-auto mb-4 grid h-16 w-16 place-items-center rounded-full bg-rose-100">
@@ -540,9 +727,7 @@ export default function TakeSchoolExamPage() {
             <h2 className="mb-2 text-xl font-bold text-rose-700">
               ⚠️ Ujian Diblok
             </h2>
-            <p className="mb-1 text-sm text-tp-text">
-              {blockReason}
-            </p>
+            <p className="mb-1 text-sm text-tp-text">{blockReason}</p>
             <p className="mb-5 text-xs text-tp-muted">
               Aktivitas ini tercatat. Jangan tinggalkan halaman ujian lagi.
             </p>
@@ -572,7 +757,6 @@ export default function TakeSchoolExamPage() {
             </p>
           </div>
 
-          {/* Online indicator */}
           <div
             className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[10px] font-semibold ${
               isOnline
@@ -584,7 +768,6 @@ export default function TakeSchoolExamPage() {
             {isOnline ? 'Online' : 'Offline'}
           </div>
 
-          {/* Timer */}
           <div
             className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-bold tabular-nums ${
               isTimeWarning
@@ -597,7 +780,6 @@ export default function TakeSchoolExamPage() {
           </div>
         </div>
 
-        {/* Progress bar */}
         <div className="h-1 bg-slate-100">
           <div
             className="h-full bg-tp-green transition-all"
@@ -608,7 +790,6 @@ export default function TakeSchoolExamPage() {
 
       {/* Main content */}
       <main className="mx-auto max-w-4xl px-4 py-6">
-        {/* Question navigator pills */}
         <div className="mb-5 flex flex-wrap gap-1.5">
           {snapshot.questions.map((q, i) => {
             const answered = !!answers[q.id]?.trim()
@@ -632,7 +813,6 @@ export default function TakeSchoolExamPage() {
           })}
         </div>
 
-        {/* Question card */}
         <div className="rounded-2xl border border-tp-border bg-white p-6">
           <div className="mb-4 flex flex-wrap items-center gap-2">
             <span className="text-sm font-bold text-tp-text">
@@ -656,39 +836,38 @@ export default function TakeSchoolExamPage() {
             {currentQuestion.question_text}
           </p>
 
-          {/* PG Options */}
-          {currentQuestion.type === 'multiple_choice' && currentQuestion.options && (
-            <div className="space-y-2">
-              {Object.entries(currentQuestion.options).map(([key, val]) => {
-                const selected = answers[currentQuestion.id] === key
-                return (
-                  <button
-                    key={key}
-                    type="button"
-                    onClick={() => handleAnswerChange(currentQuestion.id, key)}
-                    className={`flex w-full items-start gap-3 rounded-xl border p-3.5 text-left transition ${
-                      selected
-                        ? 'border-tp-green bg-tp-green/5 ring-2 ring-tp-green/20'
-                        : 'border-tp-border hover:border-tp-green/40 hover:bg-slate-50'
-                    }`}
-                  >
-                    <span
-                      className={`grid h-6 w-6 shrink-0 place-items-center rounded-md text-xs font-bold ${
+          {currentQuestion.type === 'multiple_choice' &&
+            currentQuestion.options && (
+              <div className="space-y-2">
+                {Object.entries(currentQuestion.options).map(([key, val]) => {
+                  const selected = answers[currentQuestion.id] === key
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => handleAnswerChange(currentQuestion.id, key)}
+                      className={`flex w-full items-start gap-3 rounded-xl border p-3.5 text-left transition ${
                         selected
-                          ? 'bg-tp-green text-white'
-                          : 'bg-slate-100 text-tp-muted'
+                          ? 'border-tp-green bg-tp-green/5 ring-2 ring-tp-green/20'
+                          : 'border-tp-border hover:border-tp-green/40 hover:bg-slate-50'
                       }`}
                     >
-                      {key}
-                    </span>
-                    <span className="flex-1 text-sm text-tp-text">{val}</span>
-                  </button>
-                )
-              })}
-            </div>
-          )}
+                      <span
+                        className={`grid h-6 w-6 shrink-0 place-items-center rounded-md text-xs font-bold ${
+                          selected
+                            ? 'bg-tp-green text-white'
+                            : 'bg-slate-100 text-tp-muted'
+                        }`}
+                      >
+                        {key}
+                      </span>
+                      <span className="flex-1 text-sm text-tp-text">{val}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            )}
 
-          {/* Essay Input */}
           {currentQuestion.type === 'essay' && (
             <div>
               <textarea
@@ -702,15 +881,23 @@ export default function TakeSchoolExamPage() {
               />
               <div className="mt-2 flex items-center justify-between text-[11px] text-tp-muted">
                 <span>
-                  {(answers[currentQuestion.id] || '').trim().split(/\s+/).filter(Boolean).length} kata
+                  {
+                    (answers[currentQuestion.id] || '')
+                      .trim()
+                      .split(/\s+/)
+                      .filter(Boolean).length
+                  }{' '}
+                  kata
                   {currentQuestion.min_words && currentQuestion.min_words > 0 && (
                     <> • minimal {currentQuestion.min_words} kata</>
                   )}
                 </span>
                 {currentQuestion.min_words &&
                   currentQuestion.min_words > 0 &&
-                  (answers[currentQuestion.id] || '').trim().split(/\s+/).filter(Boolean).length <
-                    currentQuestion.min_words && (
+                  (answers[currentQuestion.id] || '')
+                    .trim()
+                    .split(/\s+/)
+                    .filter(Boolean).length < currentQuestion.min_words && (
                     <span className="text-amber-600">
                       <AlertCircle size={10} className="mr-1 inline" />
                       Belum cukup kata
@@ -721,7 +908,6 @@ export default function TakeSchoolExamPage() {
           )}
         </div>
 
-        {/* Navigation */}
         <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
           <button
             type="button"
@@ -739,9 +925,7 @@ export default function TakeSchoolExamPage() {
           {!isLastQuestion ? (
             <button
               type="button"
-              onClick={() =>
-                setCurrentIndex((i) => Math.min(totalQ - 1, i + 1))
-              }
+              onClick={() => setCurrentIndex((i) => Math.min(totalQ - 1, i + 1))}
               className="inline-flex items-center gap-1.5 rounded-xl bg-tp-green px-4 py-2.5 text-sm font-semibold text-white hover:bg-tp-green-hover"
             >
               Selanjutnya <ChevronRight size={14} />
@@ -750,14 +934,14 @@ export default function TakeSchoolExamPage() {
             <button
               type="button"
               onClick={() => handleSubmit(false)}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700"
+              disabled={!!serverBlock}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
             >
               <Send size={14} /> Selesai & Kirim
             </button>
           )}
         </div>
 
-        {/* Submit error */}
         {submitError && (
           <div className="mt-4 flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700">
             <AlertCircle size={14} className="mt-0.5 shrink-0" />
@@ -774,7 +958,6 @@ export default function TakeSchoolExamPage() {
           </div>
         )}
 
-        {/* Warning kalau tab switch > 0 */}
         {tabSwitchCount > 0 && (
           <div className="mt-4 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-700">
             <AlertTriangle size={14} className="mt-0.5 shrink-0" />
@@ -785,18 +968,16 @@ export default function TakeSchoolExamPage() {
           </div>
         )}
 
-        {/* Info offline */}
         {!isOnline && (
           <div className="mt-4 flex items-start gap-2 rounded-xl border border-blue-200 bg-blue-50 p-3 text-xs text-blue-700">
             <WifiOff size={14} className="mt-0.5 shrink-0" />
             <span>
-              Koneksi terputus. Anda tetap bisa mengerjakan. Jawaban
-              tersimpan otomatis di perangkat dan akan dikirim saat online.
+              Koneksi terputus. Anda tetap bisa mengerjakan. Jawaban tersimpan
+              otomatis di perangkat dan akan dikirim saat online.
             </span>
           </div>
         )}
 
-        {/* Submit button — selalu visible di bawah kalau bukan last question */}
         {!isLastQuestion && (
           <div className="mt-5 rounded-2xl border border-tp-border bg-white p-4 text-center">
             <p className="mb-2 text-xs text-tp-muted">
@@ -805,7 +986,8 @@ export default function TakeSchoolExamPage() {
             <button
               type="button"
               onClick={() => handleSubmit(false)}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-6 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700"
+              disabled={!!serverBlock}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-6 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
             >
               <Send size={14} /> Selesai & Kirim Sekarang
             </button>
@@ -822,7 +1004,10 @@ export default function TakeSchoolExamPage() {
 
 function getErrorMessage(e: unknown): string {
   if (axios.isAxiosError(e)) {
-    return (e.response?.data as { error?: string } | undefined)?.error || e.message
+    return (
+      (e.response?.data as { error?: string } | undefined)?.error ||
+      e.message
+    )
   }
   if (e instanceof Error) return e.message
   return String(e)
