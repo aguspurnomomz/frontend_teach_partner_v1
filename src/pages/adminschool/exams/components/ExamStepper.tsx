@@ -1,7 +1,7 @@
 import { Check } from 'lucide-react'
 
 type Props = {
-  current: number // 1, 2, 3
+  current: number 
   steps?: string[]
 }
 

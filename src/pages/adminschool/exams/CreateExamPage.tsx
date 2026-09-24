@@ -33,15 +33,10 @@ export default function CreateExamPage() {
   const [error, setError] = useState<string | null>(null)
   const [data, setData] = useState<any>(DEFAULT_DATA)
 
-  // Flag untuk notice "kamu sedang menduplikat ujian"
   const [duplicateSource, setDuplicateSource] = useState<string | null>(null)
 
-  // Guard supaya duplicate hanya dijalankan sekali
   const duplicateHandledRef = useRef(false)
 
-  // ==========================================
-  // Handle duplicate mode (?duplicate=1)
-  // ==========================================
   useEffect(() => {
     if (duplicateHandledRef.current) return
 
@@ -50,7 +45,6 @@ export default function CreateExamPage() {
 
     const src = sessionStorage.getItem('exam_duplicate_source')
     if (!src) {
-      // Kalau gak ada source, bersihkan query param saja
       searchParams.delete('duplicate')
       setSearchParams(searchParams, { replace: true })
       return
@@ -76,7 +70,6 @@ export default function CreateExamPage() {
         },
         questions: (exam.questions || []).map((q: any, i: number) => ({
           ...q,
-          // Generate ID baru biar gak bentrok dengan ujian asal
           id: crypto.randomUUID?.() || `q-${Date.now()}-${i}`,
           order: q.order ?? i + 1,
         })),
@@ -91,7 +84,6 @@ export default function CreateExamPage() {
       console.error('Gagal parsing exam_duplicate_source:', e)
       setError('Gagal memuat data duplikat. Silakan buat ujian baru dari awal.')
     } finally {
-      // Selalu bersihkan sessionStorage & URL param
       sessionStorage.removeItem('exam_duplicate_source')
       searchParams.delete('duplicate')
       setSearchParams(searchParams, { replace: true })
@@ -99,16 +91,13 @@ export default function CreateExamPage() {
     }
   }, [searchParams, setSearchParams])
 
-  // ==========================================
-  // Handle save (draft / publish)
-  // ==========================================
+
   const handleSave = async (publish: boolean) => {
     setSubmitting(true)
     setError(null)
     try {
       const { data: { session } } = await supabase.auth.getSession()
 
-      // Sanitize: pastikan tiap question punya id & order
       const payload = {
         ...data,
         questions: (data.questions || []).map((q: any, i: number) => ({
@@ -140,9 +129,6 @@ export default function CreateExamPage() {
     }
   }
 
-  // ==========================================
-  // Discard duplicate banner
-  // ==========================================
   const dismissDuplicateBanner = () => {
     setDuplicateSource(null)
   }

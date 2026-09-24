@@ -6,7 +6,7 @@ type Props = {
   onSaveDraft: () => void
   onPublish: () => void
   submitting: boolean
-  readOnly?: boolean   // ← tambah ini
+  readOnly?: boolean   
 }
 
 const SUBJECT_LABELS: Record<string, string> = {

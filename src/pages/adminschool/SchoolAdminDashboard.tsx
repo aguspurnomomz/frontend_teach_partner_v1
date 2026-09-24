@@ -2,7 +2,18 @@ import { useState, useEffect } from 'react'
 import { Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { supabase } from '../../lib/supabaseClient'
 import teachpartnerIcon from '../../assets/teachpartner.png'
-import { Users, Building2, ShieldCheck, LogOut, Calendar, CalendarClock, LayoutDashboard, GraduationCap,  ClipboardCheck, FileText} from 'lucide-react'
+import {
+  Users, Building2, ShieldCheck, LogOut, Calendar, CalendarClock,
+  LayoutDashboard, GraduationCap, ClipboardCheck, FileText,
+  ChevronDown, ChevronRight,
+} from 'lucide-react'
+
+type MenuItem = {
+  path: string
+  label: string
+  icon: React.ReactNode
+  children?: MenuItem[]
+}
 
 export default function SchoolAdminDashboard({ session }: { session: any }) {
   const navigate = useNavigate()
@@ -11,58 +22,77 @@ export default function SchoolAdminDashboard({ session }: { session: any }) {
   const [showLogoutModal, setShowLogoutModal] = useState(false)
   const [isLoggingOut, setIsLoggingOut] = useState(false)
 
+  const [expandedMenus, setExpandedMenus] = useState<string[]>(() => {
+    if (location.pathname.startsWith('/school-admin/dashboard/exams') ||
+        location.pathname.startsWith('/school-admin/dashboard/exam-schedules')) {
+      return ['exam-group']
+    }
+    return []
+  })
+
   const email = session?.user?.email ?? 'Admin Sekolah'
   const displayName = email.split('@')[0] || 'Admin'
   const initial = (email.charAt(0) || 'A').toUpperCase()
 
+  const menuItems: MenuItem[] = [
+    {
+      path: '/school-admin/dashboard',
+      label: 'Ringkasan',
+      icon: <LayoutDashboard size={18} />,
+    },
+    {
+      path: '/school-admin/dashboard/school',
+      label: 'Data Sekolah',
+      icon: <Building2 size={18} />,
+    },
+    {
+      path: '/school-admin/dashboard/academic-years',
+      label: 'Tahun Akademik',
+      icon: <Calendar size={18} />,
+    },
+    {
+      path: '/school-admin/dashboard/classes',
+      label: 'Kelola Kelas',
+      icon: <Users size={18} />,
+    },
+    {
+      path: '/school-admin/dashboard/students',
+      label: 'Kelola Siswa',
+      icon: <GraduationCap size={18} />,
+    },
+    {
+      // Group menu dengan sub-menu
+      path: 'exam-group',
+      label: 'Kelola Ujian',
+      icon: <FileText size={18} />,
+      children: [
+        {
+          path: '/school-admin/dashboard/exams',
+          label: 'Soal Ujian',
+          icon: <FileText size={14} />,
+        },
+        {
+          path: '/school-admin/dashboard/exam-schedules',
+          label: 'Jadwal Ujian',
+          icon: <CalendarClock size={14} />,
+        },
+      ],
+    },
+    {
+      path: '/school-admin/dashboard/attendance',
+      label: 'Kelola Absensi',
+      icon: <ClipboardCheck size={18} />,
+    },
+  ]
 
+  const toggleMenu = (key: string) => {
+    setExpandedMenus((prev) =>
+      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]
+    )
+  }
 
-const menuItems = [
-  { 
-    path: '/school-admin/dashboard', 
-    label: 'Ringkasan', 
-    icon: <LayoutDashboard size={18} /> 
-  },
-  { 
-    path: '/school-admin/dashboard/school', 
-    label: 'Data Sekolah', 
-    icon: <Building2 size={18} /> 
-  },
-  { 
-    path: '/school-admin/dashboard/academic-years', 
-    label: 'Tahun Akademik', 
-    icon: <Calendar size={18} /> 
-  },
-  { 
-    path: '/school-admin/dashboard/classes', 
-    label: 'Kelola Kelas', 
-    icon: <Users size={18} /> 
-  },
-  { 
-    path: '/school-admin/dashboard/students', 
-    label: 'Kelola Siswa', 
-    icon: <GraduationCap size={18} /> 
-  },
-  
-  // === MENU BARU ===
-  { 
-    path: '/school-admin/dashboard/exams', 
-    label: 'Soal Ujian', 
-    icon: <FileText size={18} /> 
-  },
-  { 
-    path: '/school-admin/dashboard/exam-schedules', 
-    label: 'Jadwal Ujian', 
-    icon: <CalendarClock size={18} /> 
-  },
-  // ================
-  
-  { 
-    path: '/school-admin/dashboard/attendance', 
-    label: 'Kelola Absensi', 
-    icon: <ClipboardCheck size={18} /> 
-  },
-]
+  const isChildActive = (children: MenuItem[]) =>
+    children.some((c) => location.pathname.startsWith(c.path))
 
   useEffect(() => {
     const checkSession = async () => {
@@ -96,17 +126,17 @@ const menuItems = [
         onClick={closeSidebar}
       />
 
-      {/* Sidebar Admin Sekolah */}
+      {/* Sidebar */}
       <aside
         className={`fixed inset-y-0 left-0 z-50 flex w-[260px] flex-col border-r border-tp-border bg-tp-sidebar px-5 py-7 transition-transform duration-300 lg:translate-x-0 ${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
         <div className="mb-9 flex items-center gap-2.5 px-2">
-          <img 
-            src={teachpartnerIcon} 
-            alt="TeachPartner" 
-            className="h-8 w-auto object-contain"   // h-8 = 32px, lebar auto
+          <img
+            src={teachpartnerIcon}
+            alt="TeachPartner"
+            className="h-8 w-auto object-contain"
           />
         </div>
         <div className="mb-9 flex items-center gap-2.5 px-2">
@@ -116,8 +146,67 @@ const menuItems = [
         <div className="mb-2.5 px-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-tp-faint">
           Menu Admin
         </div>
-        <nav className="flex flex-1 flex-col gap-1">
+
+        <nav className="flex flex-1 flex-col gap-1 overflow-y-auto">
           {menuItems.map((item) => {
+            // ==========================================
+            // ITEM DENGAN CHILDREN (collapsible)
+            // ==========================================
+            if (item.children && item.children.length > 0) {
+              const isExpanded = expandedMenus.includes(item.path)
+              const hasActiveChild = isChildActive(item.children)
+
+              return (
+                <div key={item.path}>
+                  {/* Parent button */}
+                  <button
+                    type="button"
+                    className={`relative flex w-full items-center gap-3 rounded-[10px] px-3 py-[11px] text-left text-sm transition ${
+                      hasActiveChild
+                        ? 'font-semibold text-tp-green'
+                        : 'font-medium text-tp-muted hover:bg-tp-green/5 hover:text-tp-text'
+                    }`}
+                    onClick={() => toggleMenu(item.path)}
+                  >
+                    {item.icon}
+                    <span className="flex-1">{item.label}</span>
+                    {isExpanded ? (
+                      <ChevronDown size={14} />
+                    ) : (
+                      <ChevronRight size={14} />
+                    )}
+                  </button>
+
+                  {/* Children */}
+                  {isExpanded && (
+                    <div className="ml-3 mt-1 flex flex-col gap-0.5 border-l border-tp-border pl-2">
+                      {item.children.map((child) => {
+                        const childActive = location.pathname.startsWith(child.path)
+                        return (
+                          <button
+                            key={child.path}
+                            type="button"
+                            className={`relative flex w-full items-center gap-2.5 rounded-[10px] px-3 py-2 text-left text-[13px] transition ${
+                              childActive
+                                ? 'font-semibold text-tp-green bg-tp-green/5'
+                                : 'font-medium text-tp-muted hover:bg-tp-green/5 hover:text-tp-text'
+                            }`}
+                            onClick={() => {
+                              navigate(child.path)
+                              closeSidebar()
+                            }}
+                          >
+                            {child.icon}
+                            {child.label}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              )
+            }
+
             const active = location.pathname === item.path
             return (
               <button
@@ -155,10 +244,17 @@ const menuItems = [
       {/* Modal Logout */}
       {showLogoutModal && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => !isLoggingOut && setShowLogoutModal(false)} />
+          <div
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            onClick={() => !isLoggingOut && setShowLogoutModal(false)}
+          />
           <div className="relative w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
-            <h3 className="mb-2 text-center text-xl font-bold text-gray-900">Keluar Sistem</h3>
-            <p className="mb-6 text-center text-sm text-gray-600">Apakah Anda yakin ingin keluar dari Panel Admin Sekolah?</p>
+            <h3 className="mb-2 text-center text-xl font-bold text-gray-900">
+              Keluar Sistem
+            </h3>
+            <p className="mb-6 text-center text-sm text-gray-600">
+              Apakah Anda yakin ingin keluar dari Panel Admin Sekolah?
+            </p>
             <div className="flex gap-3">
               <button
                 type="button"
@@ -198,7 +294,9 @@ const menuItems = [
                 {initial}
               </div>
               <div className="hidden min-w-0 flex-col lg:flex">
-                <strong className="max-w-[160px] truncate text-[13px] font-bold text-tp-text">{displayName}</strong>
+                <strong className="max-w-[160px] truncate text-[13px] font-bold text-tp-text">
+                  {displayName}
+                </strong>
                 <span className="inline-flex items-center gap-1 text-[11px] text-emerald-600 font-medium">
                   <ShieldCheck size={12} /> Admin Sekolah
                 </span>

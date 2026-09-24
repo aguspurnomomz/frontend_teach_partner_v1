@@ -20,7 +20,7 @@ import EbooksPage from './pages/userteacher/EbooksPage'
 import BillingPage from './pages/userteacher/BillingPage'
 import ExamSessionPage from './pages/userteacher/ExamSessionPage'
 
-import TakeExamPage from './pages/studentexam/TakeExamPage'
+import TakeSchoolExamPage from './pages/studentexam/TakeSchoolExamPage'
 
 import SuperAdminLoginPage from './pages/superadmin/SuperAdminLoginPage'
 import SuperAdminDashboard from './pages/superadmin/SuperAdminDashboard'
@@ -53,9 +53,6 @@ import CreateExamSchedulePage from './pages/adminschool/exams/CreateExamSchedule
 import ExamMonitorPage from './pages/adminschool/exams/ExamMonitorPage'
 
 import ExamScheduleDetailPage from './pages/adminschool/exams/ExamScheduleDetailPage'
-
-
-
 
 
 const ROLE_CACHE_KEY = 'tp_role_cache_v1'
@@ -396,12 +393,12 @@ export default function App() {
           <Route path="exams/:examId" element={<ExamDetailPage />} />
           <Route path="exams/:examId/edit" element={<EditExamPage />} />
           
+          {/* Exam Schedules Routes */}
           <Route path="exam-schedules" element={<ExamSchedulePage />} />
           <Route path="exam-schedules/create" element={<CreateExamSchedulePage />} />
-          {/* <Route path="exam-schedules/:scheduleId" element={<ExamScheduleDetailPage />} /> */}
+          <Route path="exam-schedules/:scheduleId/monitor" element={<ExamMonitorPage />} />
           <Route path="exam-schedules/:scheduleId/edit" element={<CreateExamSchedulePage />} />
           <Route path="exam-schedules/:scheduleId" element={<ExamScheduleDetailPage />} />
-          <Route path="exam-schedules/:scheduleId/monitor" element={<ExamMonitorPage />} />
           {/* ================== */}
         </Route>
 
@@ -412,8 +409,7 @@ export default function App() {
         <Route path="/disclaimer" element={<DisclaimerPage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/update-password" element={<UpdatePasswordPage />} />
-        <Route path="/exam/take" element={<TakeExamPage />} />
-
+        <Route path="/school-exam" element={<TakeSchoolExamPage />} />
         {/* --- Route User Guru --- */}
         <Route
           path="/"

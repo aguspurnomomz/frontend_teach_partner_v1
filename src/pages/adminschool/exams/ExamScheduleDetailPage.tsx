@@ -3,12 +3,13 @@ import axios from 'axios'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
   ArrowLeft, Edit3, PlayCircle, Trash2, MoreVertical, Calendar,
-  Clock, MapPin, User as UserIcon, Copy, Check,
+  Clock, MapPin, User as UserIcon,
   AlertCircle, Loader2, FileText, Award, Users, BookOpen,
   ChevronDown, ChevronUp, CheckCircle2, Circle, BarChart3,
   Lock, Unlock, Eye, RefreshCw,
 } from 'lucide-react'
 import { supabase } from '../../../lib/supabaseClient'
+import ExamAccessPanel from './components/ExamAccessPanel'
 
 
 type ScheduleStatus = 'scheduled' | 'ongoing' | 'completed' | 'cancelled'
@@ -68,9 +69,6 @@ type StudentParticipant = {
   is_passed: boolean | null
 }
 
-// ==========================================
-// CONSTANTS
-// ==========================================
 
 const STATUS_CONFIG: Record<
   ScheduleStatus,
@@ -137,11 +135,8 @@ const STUDENT_STATUS_CONFIG = {
     text: 'text-amber-700',
     icon: AlertCircle,
   },
-}
+} as const
 
-// ==========================================
-// MAIN COMPONENT
-// ==========================================
 
 export default function ExamScheduleDetailPage() {
   const navigate = useNavigate()
@@ -156,15 +151,11 @@ export default function ExamScheduleDetailPage() {
   const [showStudents, setShowStudents] = useState(true)
   const [openMenu, setOpenMenu] = useState(false)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
-  const [copiedCode, setCopiedCode] = useState(false)
 
   // Confirm modals
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [confirmCancel, setConfirmCancel] = useState(false)
 
-  // ==========================================
-  // Fetch detail
-  // ==========================================
   const fetchDetail = useCallback(async () => {
     if (!scheduleId) return
     setLoading(true)
@@ -199,9 +190,7 @@ export default function ExamScheduleDetailPage() {
     }
   }, [openMenu])
 
-  // ==========================================
-  // Actions
-  // ==========================================
+
   const handleDelete = async () => {
     if (!scheduleId) return
     setActionLoading('delete')
@@ -238,28 +227,6 @@ export default function ExamScheduleDetailPage() {
     }
   }
 
-  const handleCopyCode = async () => {
-    if (!schedule?.access_code) return
-    try {
-      await navigator.clipboard.writeText(schedule.access_code)
-      setCopiedCode(true)
-      setTimeout(() => setCopiedCode(false), 2000)
-    } catch {
-      // Fallback for old browsers
-      const input = document.createElement('input')
-      input.value = schedule.access_code
-      document.body.appendChild(input)
-      input.select()
-      document.execCommand('copy')
-      document.body.removeChild(input)
-      setCopiedCode(true)
-      setTimeout(() => setCopiedCode(false), 2000)
-    }
-  }
-
-  // ==========================================
-  // Loading
-  // ==========================================
   if (loading) {
     return (
       <div className="mx-auto max-w-5xl">
@@ -280,9 +247,6 @@ export default function ExamScheduleDetailPage() {
     )
   }
 
-  // ==========================================
-  // Error
-  // ==========================================
   if (error || !schedule) {
     return (
       <div className="mx-auto max-w-5xl">
@@ -437,7 +401,7 @@ export default function ExamScheduleDetailPage() {
       </div>
 
       {/* ==========================================
-          Hero Card — Date + Time + Title
+          Hero Card
       ========================================== */}
       <div className="overflow-hidden rounded-2xl border border-tp-border bg-white">
         <div className="p-6">
@@ -479,9 +443,12 @@ export default function ExamScheduleDetailPage() {
                 </p>
               )}
 
-              {/* Meta chips */}
               <div className="flex flex-wrap items-center gap-1.5">
-                <Chip icon={<BookOpen size={11} />} label={schedule.subject} tone="green" />
+                <Chip
+                  icon={<BookOpen size={11} />}
+                  label={schedule.subject}
+                  tone="green"
+                />
                 {schedule.class_sub_group_name && (
                   <Chip
                     icon={<Users size={11} />}
@@ -582,6 +549,17 @@ export default function ExamScheduleDetailPage() {
       </div>
 
       {/* ==========================================
+          AKSES SISWA (QR + LINK)
+      ========================================== */}
+      {schedule.access_code && schedule.status !== 'cancelled' && (
+        <ExamAccessPanel
+          accessCode={schedule.access_code}
+          examTitle={schedule.exam_title}
+          scheduleDate={schedule.schedule_date}
+        />
+      )}
+
+      {/* ==========================================
           Detail Pelaksanaan
       ========================================== */}
       <Section
@@ -624,39 +602,6 @@ export default function ExamScheduleDetailPage() {
               </span>
             }
           />
-
-          {/* Access code — special */}
-          <div className="flex items-center justify-between gap-3 border-t border-slate-100 pt-3">
-            <span className="text-[11px] font-medium text-tp-muted">
-              Kode Akses
-            </span>
-            <div className="flex items-center gap-2">
-              <code className="rounded-lg bg-slate-100 px-3 py-1.5 font-mono text-sm font-bold tracking-wider text-tp-text">
-                {schedule.access_code || '—'}
-              </code>
-              {schedule.access_code && (
-                <button
-                  type="button"
-                  onClick={handleCopyCode}
-                  className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11px] font-semibold transition ${
-                    copiedCode
-                      ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-                      : 'border-tp-border bg-white text-tp-muted hover:bg-slate-50'
-                  }`}
-                >
-                  {copiedCode ? (
-                    <>
-                      <Check size={12} /> Tersalin
-                    </>
-                  ) : (
-                    <>
-                      <Copy size={12} /> Copy
-                    </>
-                  )}
-                </button>
-              )}
-            </div>
-          </div>
         </div>
       </Section>
 

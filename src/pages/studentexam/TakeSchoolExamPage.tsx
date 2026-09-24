@@ -65,9 +65,7 @@ export default function TakeSchoolExamPage() {
     [snapshot, currentIndex]
   )
 
-  // ==========================================
-  // Resume check on mount — kalau ada snapshot, langsung lanjut
-  // ==========================================
+
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search)
     const codeFromUrl = urlParams.get('code')
@@ -100,9 +98,7 @@ export default function TakeSchoolExamPage() {
     }
   }, [])
 
-  // ==========================================
-  // Online / offline detection
-  // ==========================================
+
   useEffect(() => {
     const goOnline = () => setIsOnline(true)
     const goOffline = () => setIsOnline(false)
@@ -114,9 +110,7 @@ export default function TakeSchoolExamPage() {
     }
   }, [])
 
-  // ==========================================
-  // Timer — countdown dari expires_at
-  // ==========================================
+
   useEffect(() => {
     if (phase !== 'exam' || !snapshot) return
 
@@ -126,7 +120,6 @@ export default function TakeSchoolExamPage() {
       setTimeLeft(remaining)
 
       if (remaining <= 0) {
-        // Auto-submit when time runs out
         handleAutoSubmit()
       }
     }
@@ -136,9 +129,7 @@ export default function TakeSchoolExamPage() {
     return () => window.clearInterval(interval)
   }, [phase, snapshot]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ==========================================
-  // LIVE BLOCK — anti-cheat saat pindah tab
-  // ==========================================
+
   useEffect(() => {
     if (phase !== 'exam') return
 
@@ -204,9 +195,7 @@ export default function TakeSchoolExamPage() {
     return () => window.removeEventListener('beforeunload', handler)
   }, [phase])
 
-  // ==========================================
-  // Handle Start Exam (gate)
-  // ==========================================
+
   const handleStart = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
@@ -260,16 +249,12 @@ export default function TakeSchoolExamPage() {
     }
   }
 
-  // ==========================================
-  // Handle answer change
-  // ==========================================
+
   const handleAnswerChange = (questionId: string, value: string) => {
     setAnswers((prev) => ({ ...prev, [questionId]: value }))
   }
 
-  // ==========================================
-  // Submit
-  // ==========================================
+
   const handleSubmit = async (auto = false) => {
     if (!snapshot) return
     if (!auto && !confirm('Yakin kirim jawaban? Anda tidak bisa mengubah setelah ini.')) return
@@ -324,9 +309,7 @@ export default function TakeSchoolExamPage() {
     handleSubmit(true)
   }, [snapshot, submitting]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ==========================================
-  // PHASE: GATE (form input)
-  // ==========================================
+
   if (phase === 'gate' || phase === 'loading') {
     return (
       <div className="min-h-screen bg-slate-50 py-8 px-4">
@@ -450,9 +433,7 @@ export default function TakeSchoolExamPage() {
     )
   }
 
-  // ==========================================
-  // PHASE: SUBMITTING
-  // ==========================================
+
   if (phase === 'submitting') {
     return (
       <div className="grid min-h-screen place-items-center bg-slate-50">
@@ -465,9 +446,7 @@ export default function TakeSchoolExamPage() {
     )
   }
 
-  // ==========================================
-  // PHASE: RESULT
-  // ==========================================
+ 
   if (phase === 'result' && result) {
     return (
       <div className="min-h-screen bg-slate-50 py-12 px-4">
@@ -532,9 +511,7 @@ export default function TakeSchoolExamPage() {
     )
   }
 
-  // ==========================================
-  // PHASE: EXAM
-  // ==========================================
+
   if (!snapshot || !currentQuestion) {
     return (
       <div className="grid min-h-screen place-items-center bg-slate-50">

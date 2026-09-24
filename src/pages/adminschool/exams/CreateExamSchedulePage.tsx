@@ -7,9 +7,6 @@ import {
 } from 'lucide-react'
 import { supabase } from '../../../lib/supabaseClient'
 
-// ==========================================
-// Types
-// ==========================================
 
 type ExamOption = {
   id: string
@@ -40,7 +37,7 @@ type ScheduleFormData = {
   start_time: string
   end_time: string
   duration_minutes: number
-  selected_targets: string[]        // array of class_sub_group_id
+  selected_targets: string[]        
   room: string
   supervisor_name: string
   session_notes: string
@@ -48,17 +45,11 @@ type ScheduleFormData = {
   require_login: boolean
 }
 
-// ==========================================
-// Constants
-// ==========================================
 
 const SUPERVISOR_SUGGESTIONS = [
-  'Bu Sari', 'Pak Budi', 'Bu Rina', 'Pak Andi', 'Bu Dewi',
+  'Guru A', 'Guru Pengawas A', 'Guru Pengawas B', 'Guru Pengawas C', 'Guru Pengawas D',
 ]
 
-// ==========================================
-// Main Component
-// ==========================================
 
 export default function CreateExamSchedulePage() {
   const navigate = useNavigate()
@@ -91,9 +82,6 @@ export default function CreateExamSchedulePage() {
     setForm((prev) => ({ ...prev, [key]: value }))
   }
 
-  // ==========================================
-  // Fetch exams (published only)
-  // ==========================================
   useEffect(() => {
     const fetchExams = async () => {
       setLoading(true)
@@ -116,9 +104,7 @@ export default function CreateExamSchedulePage() {
     fetchExams()
   }, [API_URL])
 
-  // ==========================================
-  // Ketika exam dipilih
-  // ==========================================
+
   useEffect(() => {
     if (!selectedExam) {
       setAvailableTargets([])
@@ -188,9 +174,6 @@ export default function CreateExamSchedulePage() {
     form.end_time &&
     form.selected_targets.length > 0
 
-  // ==========================================
-  // Submit
-  // ==========================================
   const handleSubmit = async () => {
     if (!canSubmit) return
     setSubmitting(true)
@@ -221,9 +204,6 @@ export default function CreateExamSchedulePage() {
     }
   }
 
-  // ==========================================
-  // Loading
-  // ==========================================
   if (loading) {
     return (
       <div className="mx-auto max-w-4xl space-y-6">
@@ -622,9 +602,6 @@ export default function CreateExamSchedulePage() {
   )
 }
 
-// ==========================================
-// Sub-components
-// ==========================================
 
 function ModeCard({
   active, onClick, icon, title, desc,
@@ -660,9 +637,6 @@ function ModeCard({
   )
 }
 
-// ==========================================
-// Helpers
-// ==========================================
 
 function generateAccessCode(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
