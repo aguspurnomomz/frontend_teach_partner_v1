@@ -67,17 +67,20 @@ type CachedRole = {
   teacher_type: 'b2c' | 'b2b' | 'hybrid'
   memberships: any[]
   school_inactive: boolean
+  token_balance?: number 
   cachedAt: number
 }
 
+//Pake Local Storage (aman gak ada data sensitive yang di ambil)
 function readRoleCache(userId: string): CachedRole | null {
   try {
-    const raw = sessionStorage.getItem(ROLE_CACHE_KEY)
+    const raw = localStorage.getItem(ROLE_CACHE_KEY)
+
     if (!raw) return null
     const cached: CachedRole = JSON.parse(raw)
     if (cached.userId !== userId) return null
     if (Date.now() - cached.cachedAt > ROLE_CACHE_TTL_MS) {
-      sessionStorage.removeItem(ROLE_CACHE_KEY)
+      localStorage.removeItem(ROLE_CACHE_KEY)
       return null
     }
     return cached
@@ -86,24 +89,27 @@ function readRoleCache(userId: string): CachedRole | null {
   }
 }
 
+//Local Storage
 function writeRoleCache(data: CachedRole) {
   try {
-    sessionStorage.setItem(ROLE_CACHE_KEY, JSON.stringify(data))
+    localStorage.setItem(ROLE_CACHE_KEY, JSON.stringify(data))
   } catch {
     // ignore quota error
   }
 }
 
+
+//local Storage
 function clearRoleCache() {
   try {
-    sessionStorage.removeItem(ROLE_CACHE_KEY)
+    localStorage.removeItem(ROLE_CACHE_KEY)
   } catch {
     // ignore
   }
 }
 
 
-let lastProfileTokenFetched: string | null = null
+// let lastProfileTokenFetched: string | null = null
 
 
 export default function App() {
@@ -126,177 +132,230 @@ export default function App() {
 
   const API_URL = import.meta.env.VITE_API_URL
 
-  // useRef: lacak user yang sudah di-fetch dalam sesi hidup
   const lastFetchedUserIdRef = useRef<string | null>(null)
 
+
   useEffect(() => {
-    let cancelled = false
-    const checkRoleAndFetchData = async (
-      token: string,
-      userId: string,
-      force = false
-    ) => {
-      if (!token || !userId) return
+  let cancelled = false
+  let bootResolved = false
 
-    
-      if (!force && lastFetchedUserIdRef.current === userId) {
-        console.log('[check-role] SKIP — user sudah di-fetch di sesi ini')
-        return
-      }
+  const markBootDone = () => {
+    if (bootResolved) return
+    bootResolved = true
+    if (!cancelled) setLoading(false)
+  }
 
-     
-      if (!force) {
-        const cached = readRoleCache(userId)
-        if (cached) {
-          console.log('[check-role] SKIP — pakai cache sessionStorage')
-          if (!cancelled) {
-            setUserRole(cached.role)
-            setSchoolInactive(cached.school_inactive)
-            if (cached.role === 'teacher') {
-              setTeacherType(cached.teacher_type)
-              setSchoolMemberships(cached.memberships || [])
-            }
-          }
-          lastFetchedUserIdRef.current = userId
+ 
+  let fetchInFlight = false
 
-       
-          if (cached.role === 'teacher' && token !== lastProfileTokenFetched) {
-            lastProfileTokenFetched = token
-            try {
-              const res = await axios.get(`${API_URL}/api/profile`, {
-                headers: { Authorization: `Bearer ${token}` },
-              })
-              if (!cancelled) setTokenBalance(res.data.token_balance)
-            } catch (e) {
-              console.error('Gagal memuat profile (dari cache):', e)
-            }
-          }
-          return
-        }
-      }
+  const checkRoleAndFetchData = async (
+    token: string,
+    userId: string,
+    force = false
+  ) => {
+    if (!token || !userId) return
 
-    
-      console.log('[check-role] FETCH dari backend')
-      setCheckingRole(true)
-      setAuthError(null)
+    // Kalau ada fetch lain sedang jalan untuk user yang sama, skip
+    if (fetchInFlight && lastFetchedUserIdRef.current === userId) {
+      console.log('[check-role] SKIP — fetch lain sedang berjalan')
+      return
+    }
 
-      try {
-        const roleRes = await axios.get(`${API_URL}/api/auth/check-role`, {
-          headers: { Authorization: `Bearer ${token}` },
-        })
-
-        const role = roleRes.data.role
-        const isSchoolInactive = roleRes.data.school_inactive === true
-        const tType = roleRes.data.teacher_type || 'b2c'
-        const memberships = roleRes.data.memberships || []
-
+   
+    if (!force) {
+      const cached = readRoleCache(userId)
+      if (cached) {
+        console.log('[check-role] SKIP — pakai cache localStorage')
         if (!cancelled) {
-          setUserRole(role)
-          setSchoolInactive(isSchoolInactive)
+          setUserRole(cached.role)
+          setSchoolInactive(cached.school_inactive)
+          if (cached.role === 'teacher') {
+            setTeacherType(cached.teacher_type)
+            setSchoolMemberships(cached.memberships || [])
+            if (typeof cached.token_balance === 'number') {
+              setTokenBalance(cached.token_balance)
+            }
+          }
         }
-
-        writeRoleCache({
-          userId,
-          role,
-          teacher_type: tType,
-          memberships,
-          school_inactive: isSchoolInactive,
-          cachedAt: Date.now(),
-        })
         lastFetchedUserIdRef.current = userId
 
-        if (role === 'teacher') {
-          if (!cancelled) {
-            setTeacherType(tType)
-            setSchoolMemberships(memberships)
-          }
-
-          if (token !== lastProfileTokenFetched) {
-            lastProfileTokenFetched = token
+        // Cache legacy (belum ada token_balance) — fetch sekali lalu update cache
+        if (cached.role === 'teacher' && typeof cached.token_balance !== 'number') {
+          fetchInFlight = true
+          try {
             const res = await axios.get(`${API_URL}/api/profile`, {
               headers: { Authorization: `Bearer ${token}` },
             })
-            if (!cancelled) setTokenBalance(res.data.token_balance)
+            const bal = res.data.token_balance ?? 0
+            if (!cancelled) setTokenBalance(bal)
+            writeRoleCache({ ...cached, token_balance: bal })
+          } catch (e) {
+            console.error('Gagal memuat profile (cache legacy):', e)
+          } finally {
+            fetchInFlight = false
           }
         }
-      } catch (e: any) {
-        console.error('Gagal memuat data sesi:', e)
-        if (!cancelled) setAuthError(e.response?.data?.error || e.message)
-        lastProfileTokenFetched = null
-        lastFetchedUserIdRef.current = null 
-        clearRoleCache()
-      } finally {
-        if (!cancelled) setCheckingRole(false)
+        return
       }
     }
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    // ==========================================
+    // 2. Fetch dari backend
+    // ==========================================
+    console.log('[check-role] FETCH dari backend')
+    if (!cancelled) setCheckingRole(true)
+    if (!cancelled) setAuthError(null)
+
+    fetchInFlight = true
+    try {
+      const roleRes = await axios.get(`${API_URL}/api/auth/check-role`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+
+      const role = roleRes.data.role
+      const isSchoolInactive = roleRes.data.school_inactive === true
+      const tType = roleRes.data.teacher_type || 'b2c'
+      const memberships = roleRes.data.memberships || []
+
+      if (!cancelled) {
+        setUserRole(role)
+        setSchoolInactive(isSchoolInactive)
+      }
+
+      let tokenBalance: number | undefined
+
+      if (role === 'teacher') {
+        if (!cancelled) {
+          setTeacherType(tType)
+          setSchoolMemberships(memberships)
+        }
+
+        try {
+          const res = await axios.get(`${API_URL}/api/profile`, {
+            headers: { Authorization: `Bearer ${token}` },
+          })
+          const bal: number = res.data.token_balance ?? 0   // ← tipe eksplisit, bukan `let` di luar
+          if (!cancelled) setTokenBalance(bal)
+          tokenBalance = bal
+        } catch (e) {
+          console.error('Gagal memuat profile:', e)
+          tokenBalance = 0
+        }
+      }
+
+      writeRoleCache({
+        userId,
+        role,
+        teacher_type: tType,
+        memberships,
+        school_inactive: isSchoolInactive,
+        token_balance: tokenBalance,
+        cachedAt: Date.now(),
+      })
+      lastFetchedUserIdRef.current = userId
+
+    } catch (e: any) {
+      console.error('Gagal memuat data sesi:', e)
+      if (!cancelled) setAuthError(e.response?.data?.error || e.message)
+      lastFetchedUserIdRef.current = null
+      clearRoleCache()
+    } finally {
+      fetchInFlight = false
+      if (!cancelled) setCheckingRole(false)
+    }
+  }
+
+
+  supabase.auth.getSession()
+    .then(({ data: { session } }) => {
       if (cancelled) return
       setSession(session)
       if (session?.user) {
-        checkRoleAndFetchData(session.access_token, session.user.id, false).finally(
-          () => {
-            if (!cancelled) setLoading(false)
-          }
-        )
+        // Tandai userId sudah "dipegang" supaya onAuthStateChange
+        // yang fire bareng tidak double fetch
+        lastFetchedUserIdRef.current = session.user.id
+        checkRoleAndFetchData(session.access_token, session.user.id, false)
+          .finally(markBootDone)
       } else {
-        setLoading(false)
+        markBootDone()
       }
     })
+    .catch(() => {
+      markBootDone()
+    })
+
+  // Fallback: kalau getSession hang > 3 detik, tetap matikan loading
+  const fallbackTimer = setTimeout(markBootDone, 3000)
 
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
-      if (cancelled) return
+  const {
+    data: { subscription },
+  } = supabase.auth.onAuthStateChange((event, session) => {
+    if (cancelled) return
 
-      if (event === 'SIGNED_IN') {
-        setSession(session)
-        if (session?.user) {
+    if (event === 'SIGNED_IN') {
+      setSession(session)
+      if (session?.user) {
+        // Kalau getSession() sudah handle user ini, skip
+        if (lastFetchedUserIdRef.current === session.user.id) {
+          console.log('[auth] SIGNED_IN — sudah di-handle getSession, skip')
+          return
+        }
+
+        const cached = readRoleCache(session.user.id)
+        const isRestore = !!cached
+
+        if (isRestore) {
+          console.log('[auth] SIGNED_IN (restore session) — pakai cache')
+          lastFetchedUserIdRef.current = session.user.id
+          checkRoleAndFetchData(session.access_token, session.user.id, false)
+        } else {
+          console.log('[auth] SIGNED_IN (login baru) — force fetch')
           lastFetchedUserIdRef.current = null
           clearRoleCache()
           checkRoleAndFetchData(session.access_token, session.user.id, true)
         }
-        return
       }
-
-      if (event === 'SIGNED_OUT') {
-        lastProfileTokenFetched = null
-        lastFetchedUserIdRef.current = null
-        clearRoleCache()
-        setSession(null)
-        setUserRole(null)
-        setTokenBalance(0)
-        setSchoolInactive(false)
-        setTeacherType('b2c')
-        setSchoolMemberships([])
-        setAuthError(null)
-        return
-      }
-
-      if (event === 'TOKEN_REFRESHED') {
-        console.log('[auth] TOKEN_REFRESHED — skip check-role')
-        setSession(session)
-        return
-      }
-
-      if (event === 'USER_UPDATED') {
-        setSession(session)
-        return
-      }
-
-      if (event === 'INITIAL_SESSION') {
-        return
-      }
-
-      setSession(session)
-    })
-
-    return () => {
-      cancelled = true
-      subscription.unsubscribe()
+      return
     }
-  }, [API_URL])
+
+    if (event === 'SIGNED_OUT') {
+      lastFetchedUserIdRef.current = null
+      clearRoleCache()
+      setSession(null)
+      setUserRole(null)
+      setTokenBalance(0)
+      setSchoolInactive(false)
+      setTeacherType('b2c')
+      setSchoolMemberships([])
+      setAuthError(null)
+      return
+    }
+
+    if (event === 'TOKEN_REFRESHED') {
+      console.log('[auth] TOKEN_REFRESHED — skip check-role')
+      setSession(session)
+      return
+    }
+
+    if (event === 'USER_UPDATED') {
+      setSession(session)
+      return
+    }
+
+    if (event === 'INITIAL_SESSION') {
+      return
+    }
+
+    setSession(session)
+  })
+
+  return () => {
+    cancelled = true
+    clearTimeout(fallbackTimer)
+    subscription.unsubscribe()
+  }
+}, [API_URL])
 
   const handleAdminLogout = () => {
     localStorage.removeItem('superadmin_token')
@@ -410,7 +469,7 @@ export default function App() {
         <Route path="/school-exam" element={<TakeSchoolExamPage />} />
         {/* --- Route User Guru --- */}
         <Route
-          path="/"
+          path="/" 
           element={
             !session ? (
               <LoginPage />

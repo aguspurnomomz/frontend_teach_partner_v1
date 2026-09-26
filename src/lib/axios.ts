@@ -9,9 +9,8 @@ api.interceptors.response.use(
   (error) => {
     if (error.response && error.response.status === 401) {
       localStorage.removeItem('superadmin_token');
-      localStorage.removeItem('token'); // jika ada token user guru
+      localStorage.removeItem('token'); 
 
-      // Lempar kembali ke halaman login utama
       window.location.href = '/'; 
     }
     return Promise.reject(error);

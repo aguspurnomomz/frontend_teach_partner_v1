@@ -1,8 +1,5 @@
 import { supabase } from './supabaseClient'
 
-// ==========================================
-// TYPES
-// ==========================================
 
 export type ExamControlEvent =
   | {
@@ -23,9 +20,7 @@ export type ExamControlEvent =
       message: string
     }
 
-// ==========================================
-// SUBSCRIBE (dipakai siswa)
-// ==========================================
+
 
 /**
  * Subscribe ke channel `exam-control-{scheduleId}`.
@@ -65,9 +60,6 @@ export function subscribeExamControl(
   }
 }
 
-// ==========================================
-// BROADCAST (dipakai admin, opsional)
-// ==========================================
 
 /**
  * Kirim event control ke channel. Dipakai dari frontend admin (opsional).
@@ -90,7 +82,6 @@ export async function broadcastExamControl(
       payload: event,
     })
   } finally {
-    // Delay sedikit biar message terkirim
     setTimeout(() => {
       supabase.removeChannel(channel)
     }, 500)

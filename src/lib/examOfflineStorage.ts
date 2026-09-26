@@ -12,8 +12,8 @@ export type ExamSnapshot = {
   duration_minutes: number
   passing_score: number
   total_score: number
-  started_at: string            // ISO
-  expires_at: string            // ISO
+  started_at: string            
+  expires_at: string            
   questions: ExamQuestion[]
   saved_at: string
 }
@@ -41,9 +41,6 @@ export type SubmitQueueItem = {
   queued_at: string
 }
 
-// ==========================================
-// Snapshot
-// ==========================================
 
 export function saveSnapshot(snapshot: ExamSnapshot): void {
   try {
